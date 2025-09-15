@@ -1,0 +1,1 @@
+# Bayesian Signal Weighting Module

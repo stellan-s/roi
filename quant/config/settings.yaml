@@ -1,0 +1,83 @@
+run:
+  as_of: today         # eller YYYY-MM-DD
+  outdir: "reports"
+
+data:
+  cache_dir: "data"
+  lookback_days: 500   # Historisk data för regime detection
+
+signals:
+  sma_long: 200        # SMA för trend signal
+  momentum_window: 252 # Årsmomemtum (252 trading days)
+  news_feed_urls:
+    - "https://news.cision.com/se/rss/all"
+
+# Bayesian Engine Configuration
+bayesian:
+  time_horizon_days: 21          # Investeringshorisont för E[r] och Pr(↑)
+  decision_thresholds:
+    buy_probability: 0.58        # Köp när Pr(↑) ≥ 58% (mer aggressiv)
+    sell_probability: 0.40       # Sälj när Pr(↑) ≤ 40% (mer aggressiv)
+    min_expected_return: 0.0005  # Minimum 0.05% daglig E[r] för köp (lägre)
+    max_uncertainty: 0.35        # Max osäkerhet för action (tolerera mer)
+
+  # Prior beliefs för signaler (kan justeras baserat på backtest)
+  priors:
+    trend_effectiveness: 0.62    # SMA trend-following edge (högre)
+    momentum_effectiveness: 0.68 # Momentum är starkast dokumenterat (högre)
+    sentiment_effectiveness: 0.58 # Sentiment är noisier (högre)
+
+# Regime Detection Configuration
+regime_detection:
+  enabled: true
+  lookback_days: 60             # Regime detection window
+  volatility_window: 20         # Volatilitet beräkning
+  trend_window: 50             # Trend styrka window
+
+  # Regime transition probabilities (sticky regimes)
+  transition_persistence: 0.80  # Sannolikhet att stanna i samma regim
+
+  # Regime classification thresholds
+  thresholds:
+    volatility_low: 0.15        # 15% årlig vol = låg
+    volatility_high: 0.25       # 25% årlig vol = hög
+    return_bull: 0.002          # 0.2% daglig för bull
+    return_bear: -0.002         # -0.2% daglig för bear
+    drawdown_bear: -0.10        # -10% drawdown → bear
+
+policy:
+  max_weight: 0.10             # Max position size per aktie
+  pre_earnings_freeze_days: 5  # Disciplinmotor: ingen handel före earnings
+  trade_cost_bps: 5           # Transaction costs (lägre för mer trades)
+
+  # Portfolio-nivå regler
+  max_single_regime_exposure: 0.85  # Max 85% i samma regim (mer tillåtande)
+  regime_diversification: true      # Kräv regim-diversifiering
+  min_portfolio_positions: 3        # Minst 3 aktiva positioner
+  bear_market_allocation: 0.60      # Max 60% allokering i bear market
+
+  # Heavy-tail risk controls
+  max_tail_risk_allocation: 0.30    # Max 30% i högrisk-positioner (tail_risk > 0.7)
+  tail_risk_position_penalty: 0.30  # Max 30% reduction för high tail risk
+  min_tail_risk_adjusted_weight: 0.5 # Minimum 50% av ursprunglig vikt efter tail penalty
+
+# Heavy-tail Risk Modeling Configuration
+risk_modeling:
+  enabled: true
+  confidence_levels: [0.95, 0.99, 0.999]  # VaR confidence levels
+  time_horizons_days: [21, 63, 252]       # 1m, 3m, 1y analysis
+  monte_carlo_simulations: 10000          # MC simulation size
+  evt_threshold_percentile: 0.95          # EVT tail threshold
+  min_observations_for_tail_fit: 30       # Minimum data points för Student-t fitting
+
+  # Tail risk score thresholds för visualization
+  tail_risk_thresholds:
+    low: 0.4        # Green 🟢 below this
+    high: 0.7       # Red 🔴 above this, Yellow 🟡 between
+
+# Risk Analytics Configuration
+risk_analytics:
+  stress_scenarios: ["black_monday", "covid_crash", "regime_shift"]
+  risk_free_rate: 0.02                    # 2% annual risk-free rate
+  target_portfolio_volatility: 0.15       # 15% target vol
+  tail_risk_penalty: 0.02                 # Extra penalty för heavy tails

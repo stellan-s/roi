@@ -1,0 +1,19 @@
+tickers:
+  - VOLV-B.ST   # Volvo B
+  - INVE-B.ST   # Investor B
+  - ERIC-B.ST   # Ericsson B
+  - SAND.ST     # Sandvik
+  - ATCO-A.ST   # Atlas Copco A
+  - HM-B.ST     # Hennes & Mauritz B
+  - SKF-B.ST    # SKF B
+  - TEL2-B.ST   # Tele2 B
+  - NIBE-B.ST   # N
+  - SWED-A.ST   # Swedbank A
+  - ASSA-B.ST   # Assa Abloy B
+  - AAPL        # Apple
+  - MSFT       # Microsoft
+  - GOOGL      # Alphabet
+  - AMZN       # Amazon
+  - TSLA       # Tesla
+  - META       # Meta Platforms
+  - NVDA       # NVIDIA
