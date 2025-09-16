@@ -53,6 +53,21 @@ bayesian:
     trend_effectiveness: 0.62    # SMA trend-following edge
     momentum_effectiveness: 0.68 # Momentum edge (strongest documented)
     sentiment_effectiveness: 0.58 # Sentiment edge (noisiest)
+
+  # Parameter Learning (NEW: replaces hardcoded values with data-driven estimates)
+  parameter_learning:
+    enabled: true                 # Enable adaptive parameter estimation
+    calibration_lookback: 1000    # Days of data for parameter calibration
+    confidence_level: 0.95        # Confidence level for parameter estimates
+    min_observations: 100         # Minimum data points for reliable estimates
+
+    # Signal normalization learning
+    sentiment_normalization: "percentile_based"  # Use data distribution vs hardcoded /2.0
+    momentum_scaling: "distribution_based"       # Scale based on actual momentum range
+
+    # Regime adjustment learning
+    regime_effectiveness_learning: true          # Learn regime multipliers from data
+    bootstrap_iterations: 500                    # Bootstrap samples for confidence intervals
 ```
 
 ### Regime Detection Configuration
@@ -92,6 +107,46 @@ policy:
   max_tail_risk_allocation: 0.30    # Max 30% in high-risk positions
   tail_risk_position_penalty: 0.30  # Max 30% position size reduction
   min_tail_risk_adjusted_weight: 0.5 # Minimum 50% of original weight
+```
+
+### Statistical Tail Risk Configuration (NEW)
+```yaml
+# Statistical Tail Risk Analysis
+tail_risk:
+  enabled: true
+  calculation_method: "statistical"       # "statistical" vs "heuristic" (legacy)
+
+  # Primary measure: P[return < -2σ] (nedsidesrisk)
+  downside_tail_risk:
+    enabled: true
+    threshold_sigma: -2.0                 # -2σ threshold for downside risk
+    display_thresholds:
+      low: 0.025                          # 2.5% = green 🟢
+      high: 0.05                          # 5.0% = red 🔴 (yellow between)
+
+  # Secondary measure: P[|return| > 2σ] (extremrörelser)
+  extreme_move_probability:
+    enabled: true
+    threshold_sigma: 2.0                  # ±2σ threshold for extreme moves
+    display_thresholds:
+      low: 0.046                          # 4.6% = normal distribution baseline
+      high: 0.10                          # 10% = concerning level
+
+  # Distribution fitting
+  distribution_fitting:
+    test_normality: true                  # Use Jarque-Bera test
+    prefer_student_t: true                # Fit Student-t for heavy tails
+    min_observations: 100                 # Minimum data for reliable fit
+    fallback_distribution: "empirical"    # When parametric fitting fails
+
+  # Signal and regime adjustments
+  adjustments:
+    momentum_factor: 0.2                  # How much momentum affects tail risk
+    sentiment_factor: 0.15                # How much sentiment affects tail risk
+    regime_multipliers:
+      bull: 0.8                          # Lower tail risk in bull markets
+      bear: 1.4                          # Higher tail risk in bear markets
+      neutral: 1.0                       # Baseline tail risk
 ```
 
 ### Risk Modeling Configuration

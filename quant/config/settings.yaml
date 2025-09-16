@@ -27,6 +27,21 @@ bayesian:
     momentum_effectiveness: 0.68 # Momentum är starkast dokumenterat (högre)
     sentiment_effectiveness: 0.58 # Sentiment är noisier (högre)
 
+  # Parameter Learning (ersätter hardkodade värden med data-drivna estimat)
+  parameter_learning:
+    enabled: true                 # Aktivera adaptiv parameter-estimering
+    calibration_lookback: 1000    # Dagar av data för parameter-kalibrering
+    confidence_level: 0.95        # Konfidensnivå för parameter-estimat
+    min_observations: 100         # Minimum datapunkter för tillförlitliga estimat
+
+    # Signal-normalisering lärande
+    sentiment_normalization: "percentile_based"  # Använd data-distribution vs hardkodad /2.0
+    momentum_scaling: "distribution_based"       # Skala baserat på faktisk momentum-range
+
+    # Regim-justering lärande
+    regime_effectiveness_learning: true          # Lär regim-multiplikatorer från data
+    bootstrap_iterations: 500                    # Bootstrap-sampel för konfidensintervall
+
 # Regime Detection Configuration
 regime_detection:
   enabled: true
@@ -61,7 +76,44 @@ policy:
   tail_risk_position_penalty: 0.30  # Max 30% reduction för high tail risk
   min_tail_risk_adjusted_weight: 0.5 # Minimum 50% av ursprunglig vikt efter tail penalty
 
-# Heavy-tail Risk Modeling Configuration
+# Statistisk Tail Risk Analys (NY: ersätter heuristisk tail risk)
+tail_risk:
+  enabled: true
+  calculation_method: "statistical"       # "statistical" vs "heuristic" (legacy)
+
+  # Huvudmått: P[avkastning < -2σ] (nedsidesrisk)
+  downside_tail_risk:
+    enabled: true
+    threshold_sigma: -2.0                 # -2σ tröskelvärde för nedsidesrisk
+    display_thresholds:
+      low: 0.025                          # 2.5% = grön 🟢
+      high: 0.05                          # 5.0% = röd 🔴 (gul däremellan)
+
+  # Sekundmått: P[|avkastning| > 2σ] (extremrörelser)
+  extreme_move_probability:
+    enabled: true
+    threshold_sigma: 2.0                  # ±2σ tröskelvärde för extremrörelser
+    display_thresholds:
+      low: 0.046                          # 4.6% = normalfördelning baseline
+      high: 0.10                          # 10% = oroväckande nivå
+
+  # Fördelningsanpassning
+  distribution_fitting:
+    test_normality: true                  # Använd Jarque-Bera test
+    prefer_student_t: true                # Anpassa Student-t för heavy tails
+    min_observations: 100                 # Minimum data för tillförlitlig anpassning
+    fallback_distribution: "empirical"    # När parametrisk anpassning misslyckas
+
+  # Signal- och regim-justeringar
+  adjustments:
+    momentum_factor: 0.2                  # Hur mycket momentum påverkar tail risk
+    sentiment_factor: 0.15                # Hur mycket sentiment påverkar tail risk
+    regime_multipliers:
+      bull: 0.8                          # Lägre tail risk i bullmarknader
+      bear: 1.4                          # Högre tail risk i bearmarknader
+      neutral: 1.0                       # Baseline tail risk
+
+# Heavy-tail Risk Modeling Configuration (legacy - för kompatibilitet)
 risk_modeling:
   enabled: true
   confidence_levels: [0.95, 0.99, 0.999]  # VaR confidence levels
@@ -70,7 +122,7 @@ risk_modeling:
   evt_threshold_percentile: 0.95          # EVT tail threshold
   min_observations_for_tail_fit: 30       # Minimum data points för Student-t fitting
 
-  # Tail risk score thresholds för visualization
+  # Legacy tail risk score thresholds för visualization
   tail_risk_thresholds:
     low: 0.4        # Green 🟢 below this
     high: 0.7       # Red 🔴 above this, Yellow 🟡 between

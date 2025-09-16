@@ -127,29 +127,84 @@ regime_probabilities = {
 
 ### Regime-Specific Multipliers
 
-Each regime applies different signal weightings:
+### Signal Adjustments: From Hardcoded to Learned
+
+#### Traditional Approach (Static)
+Each regime historically applied fixed signal weightings:
 
 ```python
 def get_regime_adjustments(self, regime: MarketRegime) -> Dict[str, float]:
+    # HARDCODED VALUES - based on assumptions
     if regime == MarketRegime.BULL:
         return {
-            "momentum": 1.2,    # Enhanced momentum in trends
-            "trend": 1.0,       # Standard trend following
-            "sentiment": 0.8    # Reduced sentiment (optimism bias)
+            "momentum": 1.2,    # Assumed: Enhanced momentum in trends
+            "trend": 1.0,       # Assumed: Standard trend following
+            "sentiment": 0.8    # Assumed: Reduced sentiment (optimism bias)
         }
     elif regime == MarketRegime.BEAR:
         return {
-            "momentum": 0.7,    # Reduced momentum (reversals)
-            "trend": 1.1,       # Enhanced trend following
-            "sentiment": 1.4    # Enhanced sentiment (fear informative)
-        }
-    else:  # NEUTRAL
-        return {
-            "momentum": 1.0,    # Standard weightings
-            "trend": 1.0,
-            "sentiment": 1.0
+            "momentum": 0.7,    # Assumed: Reduced momentum (reversals)
+            "trend": 1.1,       # Assumed: Enhanced trend following
+            "sentiment": 1.4    # Assumed: Enhanced sentiment (fear informative)
         }
 ```
+
+#### Adaptive Approach (Learned) - NEW
+
+The system now learns regime adjustments from historical data:
+
+```python
+def estimate_regime_adjustments(self, historical_data) -> Dict[str, Dict[str, float]]:
+    """Learn regime-conditional signal effectiveness from data"""
+
+    for regime in ["bull", "bear", "neutral"]:
+        regime_periods = historical_data[historical_data.regime == regime]
+
+        for signal in ["momentum", "trend", "sentiment"]:
+            # Calculate signal effectiveness in this regime
+            regime_correlation = correlation(
+                regime_periods[signal],
+                regime_periods["forward_returns"]
+            )
+
+            # Compare to overall effectiveness
+            overall_correlation = correlation(
+                all_data[signal],
+                all_data["forward_returns"]
+            )
+
+            # Learn the multiplier
+            learned_multiplier = regime_correlation / overall_correlation
+
+            # Store with confidence interval
+            regime_adjustments[regime][signal] = EstimatedParameter(
+                value=learned_multiplier,
+                confidence_interval=(lower, upper),
+                estimation_method="regime_conditional_correlation",
+                n_observations=len(regime_periods)
+            )
+```
+
+#### Example Learning Results
+
+```
+Regime Adjustment Learning Results:
+  Bull Market:
+    momentum: 1.2 → 1.29 (+7.5%) [CI: 1.15-1.43, N=412 obs]
+    trend: 1.0 → 1.18 (+18.0%) [CI: 1.05-1.31, N=412 obs]
+    sentiment: 0.8 → 0.76 (-5.0%) [CI: 0.68-0.84, N=412 obs]
+
+  Bear Market:
+    momentum: 0.7 → 0.65 (-7.1%) [CI: 0.52-0.78, N=287 obs]
+    trend: 1.1 → 1.15 (+4.5%) [CI: 1.02-1.28, N=287 obs]
+    sentiment: 1.4 → 1.52 (+8.6%) [CI: 1.38-1.66, N=287 obs]
+```
+
+**Benefits of Learned Adjustments**:
+- **Evidence-based**: Derived from actual regime performance
+- **Dynamic**: Automatically updates with new data
+- **Uncertainty-aware**: Provides confidence intervals
+- **Robust**: Falls back to defaults when data is insufficient
 
 ## Transition Dynamics
 

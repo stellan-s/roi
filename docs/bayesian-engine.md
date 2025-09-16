@@ -15,6 +15,21 @@ The system treats each signal (trend, momentum, sentiment) as evidence that infl
 3. **Quantify Uncertainty**: Provide confidence intervals
 4. **Adapt Over Time**: Learn from market performance
 
+### Adaptive Parameter Learning (NEW)
+
+The system now learns key parameters from historical data instead of using hardcoded values:
+
+1. **Signal Normalization**: Data-driven scaling replaces arbitrary constants
+2. **Regime Adjustments**: Empirically estimated effectiveness multipliers
+3. **Base Returns**: Market-derived expected returns
+4. **Risk Parameters**: Statistically calibrated tail risk measures
+
+**Benefits**:
+- **Evidence-based**: Parameters derived from actual market data
+- **Adaptive**: Automatically adjusts to changing market conditions
+- **Transparent**: Clear confidence intervals and estimation methods
+- **Robust**: Falls back to sensible defaults when data is insufficient
+
 ### Signal Types
 
 #### 1. Trend Signal
@@ -76,6 +91,62 @@ class SignalOutput:
     signal_weights: Dict         # Individual signal contributions
 ```
 
+## Parameter Learning Process
+
+### Calibration Phase
+
+When using the `AdaptiveBayesianEngine`, the system performs parameter calibration before daily analysis:
+
+```python
+# 1. Load historical data (1000+ days)
+prices, sentiment, technical, returns = load_historical_data()
+
+# 2. Estimate parameters from data
+parameter_estimator = ParameterEstimator()
+estimated_params = parameter_estimator.estimate_all_parameters(
+    prices, sentiment, technical, returns
+)
+
+# 3. Update engine with learned parameters
+adaptive_engine.calibrate_parameters(estimated_params)
+```
+
+### What Gets Learned
+
+#### Signal Normalization
+```python
+# OLD: Hardcoded scaling
+sentiment_signal = np.clip(sent_score / 2.0, -1.0, 1.0)  # Why /2.0?
+
+# NEW: Data-driven scaling
+p5, p95 = np.percentile(sentiment_scores, [5, 95])
+scale_factor = 2.0 / (p95 - p5)  # Based on actual distribution
+sentiment_signal = np.clip(sent_score * scale_factor, -1.0, 1.0)
+```
+
+#### Regime Effectiveness
+```python
+# OLD: Assumed multipliers
+bull_adjustments = {"momentum": 1.3, "trend": 1.2, "sentiment": 0.8}
+
+# NEW: Empirically estimated
+bull_momentum_correlation = correlation(bull_periods, momentum_signal, returns)
+overall_momentum_correlation = correlation(all_periods, momentum_signal, returns)
+learned_multiplier = bull_momentum_correlation / overall_momentum_correlation
+```
+
+### Parameter Diagnostics
+
+The system provides diagnostics showing estimated vs default values:
+
+```
+Parameter Changes from Defaults:
+  sentiment_scale_factor: 0.500 → 0.672 (+34.4%)
+  momentum_scale_factor: 2.000 → 1.847 (-7.7%)
+  bull_momentum_effectiveness: 1.300 → 1.290 (-0.8%)
+  bear_sentiment_effectiveness: 1.400 → 1.520 (+8.6%)
+```
+
 ## Configuration
 
 ### Bayesian Settings (settings.yaml)
@@ -93,6 +164,13 @@ bayesian:
     trend_effectiveness: 0.62   # SMA trend-following edge
     momentum_effectiveness: 0.68 # Momentum edge (strongest)
     sentiment_effectiveness: 0.58 # Sentiment edge (noisiest)
+
+  # NEW: Parameter learning configuration
+  parameter_learning:
+    enabled: true                 # Enable adaptive parameter estimation
+    calibration_lookback: 1000    # Days of data for calibration
+    confidence_level: 0.95        # Confidence level for estimates
+    min_observations: 100         # Minimum data for reliable estimates
 ```
 
 ## Decision Logic

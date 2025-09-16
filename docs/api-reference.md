@@ -70,10 +70,31 @@ class RegimeCharacteristics:
 
 ### Risk Modeling
 
-#### TailRiskMetrics
+#### TailRiskMetrics (NEW: Statistical Tail Risk)
 ```python
 @dataclass
 class TailRiskMetrics:
+    # Primary measure: P[return < -2σ] (nedsidesrisk)
+    downside_tail_risk: float     # Probability of downside tail events
+
+    # Secondary measure: P[|return| > 2σ] (extremrörelser)
+    extreme_move_prob: float      # Probability of extreme moves (two-sided)
+
+    # Additional metrics
+    expected_shortfall: float     # E[return | return < -2σ]
+    volatility_annual: float      # σ (annualized)
+
+    # Distribution parameters
+    distribution_type: str        # "normal", "student_t", "empirical"
+    degrees_of_freedom: Optional[float]  # For Student-t distribution
+    skewness: float              # Distribution skewness
+    kurtosis: float              # Distribution kurtosis
+```
+
+#### LegacyTailRiskMetrics (Legacy)
+```python
+@dataclass
+class LegacyTailRiskMetrics:
     confidence_level: float        # VaR confidence level (e.g., 0.95)
     time_horizon_days: int        # Analysis period
     var_normal: float             # Normal distribution VaR
@@ -330,12 +351,65 @@ def fit_extreme_value_theory(self, returns: pd.Series) -> Dict:
     """
 ```
 
-##### calculate_tail_risk_metrics
+### TailRiskCalculator (NEW: Statistical Tail Risk Analysis)
+
+Statistical tail risk calculator using proper probability definitions.
+
+```python
+class TailRiskCalculator:
+    def __init__(self, confidence_level: float = 0.95)
+```
+
+#### Methods
+
+##### calculate_tail_risk
+```python
+def calculate_tail_risk(self,
+                       ticker: str,
+                       historical_returns: pd.Series,
+                       signals: Dict[SignalType, float],
+                       regime: Optional[str] = None) -> TailRiskMetrics:
+    """
+    Calculate proper tail risk metrics for a ticker.
+
+    Args:
+        ticker: Stock ticker
+        historical_returns: Daily returns series
+        signals: Current signal values {SignalType: float}
+        regime: Current market regime ("bull", "bear", "neutral")
+
+    Returns:
+        TailRiskMetrics with P[return < -2σ] and P[|return| > 2σ]
+    """
+```
+
+##### calculate_portfolio_tail_risk
+```python
+def calculate_portfolio_tail_risk(self,
+                                 positions: Dict[str, float],
+                                 individual_risks: Dict[str, TailRiskMetrics],
+                                 correlation_matrix: Optional[pd.DataFrame] = None) -> TailRiskMetrics:
+    """
+    Calculate portfolio-level tail risk from individual position risks.
+
+    Args:
+        positions: {ticker: weight} portfolio positions
+        individual_risks: {ticker: TailRiskMetrics} for each position
+        correlation_matrix: Asset correlation matrix (optional)
+
+    Returns:
+        Portfolio-level TailRiskMetrics
+    """
+```
+
+### Legacy HeavyTailRiskModel
+
+##### calculate_tail_risk_metrics (Legacy)
 ```python
 def calculate_tail_risk_metrics(self,
                                returns: pd.Series,
                                confidence_level: float = 0.95,
-                               time_horizon_days: int = 21) -> TailRiskMetrics:
+                               time_horizon_days: int = 21) -> LegacyTailRiskMetrics:
     """
     Calculate comprehensive tail risk metrics.
 
@@ -618,6 +692,123 @@ def save_daily_markdown(decisions: pd.DataFrame,
     Returns:
         Path to generated report file
     """
+```
+
+## Parameter Estimation (NEW: Adaptive Learning)
+
+### ParameterEstimator
+
+Data-driven parameter estimation replacing hardcoded values.
+
+```python
+class ParameterEstimator:
+    def __init__(self, confidence_level: float = 0.95)
+```
+
+#### Core Methods
+
+##### estimate_all_parameters
+```python
+def estimate_all_parameters(self,
+                          prices_df: pd.DataFrame,
+                          sentiment_df: pd.DataFrame,
+                          technical_df: pd.DataFrame,
+                          regime_df: Optional[pd.DataFrame] = None,
+                          returns_df: Optional[pd.DataFrame] = None) -> ParameterEstimates:
+    """
+    Estimate all parameters from historical data.
+
+    Args:
+        prices_df: Historical price data
+        sentiment_df: Historical sentiment data
+        technical_df: Technical indicator data
+        regime_df: Optional regime classification data
+        returns_df: Optional return data
+
+    Returns:
+        ParameterEstimates with all learned parameters
+    """
+```
+
+##### estimate_signal_normalization_params
+```python
+def estimate_signal_normalization_params(self,
+                                       prices_df: pd.DataFrame,
+                                       sentiment_df: pd.DataFrame,
+                                       technical_df: pd.DataFrame) -> Dict[str, EstimatedParameter]:
+    """
+    Estimate signal normalization parameters based on empirical distributions.
+
+    Replaces hardcoded values like:
+    - sentiment_signal = np.clip(sent_score / 2.0, -1.0, 1.0)  # /2.0 → learned
+    - momentum_signal = (mom_rank - 0.5) * 2.0                # *2.0 → learned
+
+    Returns:
+        Dict with 'sentiment_scale' and 'momentum_scale' parameters
+    """
+```
+
+##### estimate_regime_adjustments
+```python
+def estimate_regime_adjustments(self,
+                              prices_df: pd.DataFrame,
+                              signals_df: pd.DataFrame,
+                              regime_df: pd.DataFrame,
+                              returns_df: pd.DataFrame) -> Dict[str, Dict[str, EstimatedParameter]]:
+    """
+    Learn regime-conditional signal effectiveness multipliers.
+
+    Replaces hardcoded regime adjustments like:
+    - Bull: {"momentum": 1.3, "trend": 1.2, "sentiment": 0.8}
+    - Bear: {"momentum": 0.7, "trend": 1.1, "sentiment": 1.4}
+
+    Returns:
+        Dict[regime][signal_type] = EstimatedParameter with learned multipliers
+    """
+```
+
+### Data Structures
+
+#### EstimatedParameter
+```python
+@dataclass
+class EstimatedParameter:
+    value: float                    # The learned parameter value
+    confidence_interval: Tuple[float, float]  # (lower, upper) bounds
+    estimation_method: str          # How the parameter was estimated
+    n_observations: int            # Amount of data used
+    r_squared: Optional[float]      # Goodness of fit (if applicable)
+```
+
+#### ParameterEstimates
+```python
+@dataclass
+class ParameterEstimates:
+    # Signal normalization
+    sentiment_scale_factor: EstimatedParameter
+    momentum_scale_factor: EstimatedParameter
+
+    # Bayesian engine
+    base_annual_return: EstimatedParameter
+    sigmoid_scale_factor: EstimatedParameter
+    signal_multiplier: EstimatedParameter
+
+    # Risk parameters
+    momentum_volatility_factor: EstimatedParameter
+
+    # Regime adjustments (learned weights)
+    regime_adjustments: Dict[str, Dict[str, EstimatedParameter]]
+```
+
+### AdaptiveBayesianEngine
+
+Extended Bayesian engine with parameter learning.
+
+```python
+class AdaptiveBayesianEngine(BayesianPolicyEngine):
+    def calibrate_parameters(self, ...) -> None
+    def bayesian_score_adaptive(self, ...) -> pd.DataFrame
+    def get_parameter_diagnostics(self) -> pd.DataFrame
 ```
 
 ## Error Handling
