@@ -24,8 +24,14 @@ pip install pandas numpy yfinance pyyaml
 
 ### Basic Usage
 ```bash
-# Run complete analysis
+# Run complete analysis with adaptive learning (RECOMMENDED)
+python -m quant.adaptive_main
+
+# Run with static parameters (legacy)
 python -m quant.main
+
+# Run comprehensive backtesting
+python -m quant.backtest_runner
 
 # View generated report
 cat reports/daily_$(date +%Y-%m-%d).md
@@ -44,11 +50,12 @@ Edit `quant/config/universe.yaml` to modify the stock universe.
 
 The system generates a comprehensive daily report including:
 
-### Bayesian Recommendations
+### Enhanced Bayesian Recommendations
 ```
 ## Köp-förslag
-- **TSLA** @ 410.04 — E[r]: +0.06% | Pr(↑): 82% | Confidence: 0.51 | σ: 0.21 | Tail Risk: 🟡 0.41
-  *Signals: Trend(0.30), Momentum(0.49), Sentiment(0.21)*
+- **TSLA** @ 418.93 — E[r]_1d: +0.14% | E[R]_21d: +3.07% | Pr(↑): 92% | Confidence: 0.59 | σ: 31.03% | Downside VaR_1d: 🟡 2.8%
+  *Signalbidrag (normaliserade): Trend(0.25), Momentum(0.69), Sentiment(0.06)*
+  *Extremrörelser P[|r| > 2σ]: 6.0%*
 ```
 
 ### Market Analysis
@@ -67,12 +74,15 @@ The system generates a comprehensive daily report including:
 
 ## Understanding the Output
 
-### Signal Interpretation
-- **E[r]**: Expected daily return from Bayesian analysis
+### Enhanced Signal Interpretation
+- **E[r]_1d**: Expected daily return from Bayesian analysis
+- **E[R]_21d**: Expected 21-day aggregated return
 - **Pr(↑)**: Probability of positive movement (21-day horizon)
 - **Confidence**: Decision confidence (0-1, higher = more certain)
-- **σ**: Uncertainty measure (0-1, lower = more certain)
-- **Tail Risk**: Heavy-tail risk score (🟢 low, 🟡 medium, 🔴 high)
+- **σ**: Daily volatility estimate (annualized %)
+- **Downside VaR_1d**: 1-day Value-at-Risk with color coding (🟢 low, 🟡 medium, 🔴 high)
+- **Signal Attribution**: Normalized contributions from Trend, Momentum, and Sentiment
+- **Extreme Moves**: P[|return| > 2σ] probability of large movements
 
 ### Decision Criteria
 - **Buy**: Pr(↑) ≥ 58% + E[r] ≥ 0.05% + low uncertainty
@@ -81,8 +91,13 @@ The system generates a comprehensive daily report including:
 
 ## Next Steps
 
-1. **Review Configuration**: Customize settings in `settings.yaml`
-2. **Explore Documentation**: Read detailed component documentation
-3. **Analyze Results**: Review daily reports and inspect the logged artifacts under `data/recommendation_logs/` and `data/portfolio/`
-4. **Backtest**: Implement historical performance analysis
-5. **Customize**: Modify universe, add new signals, or adjust rules
+1. **Try Adaptive Analysis**: Run `python -m quant.adaptive_main` for parameter learning
+2. **Review Configuration**: Customize settings in `settings.yaml`
+3. **Run Backtesting**: Use `python -m quant.backtest_runner` for historical validation
+4. **Explore Documentation**: Read detailed component documentation including:
+   - [Backtesting Framework](backtesting.md) - Historical performance analysis
+   - [Risk Modeling](risk-modeling.md) - Statistical tail risk calculations
+   - [Bayesian Engine](bayesian-engine.md) - Adaptive signal processing
+5. **Analyze Results**: Review daily reports with enhanced analytics and VaR indicators
+6. **Performance Attribution**: Use backtesting to understand which components add value
+7. **Customize**: Modify universe, add new signals, or adjust risk parameters

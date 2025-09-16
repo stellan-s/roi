@@ -46,8 +46,8 @@ bayesian:
 regime_detection:
   enabled: true
   lookback_days: 60             # Regime detection window
-  volatility_window: 20         # Volatilitet beräkning
-  trend_window: 50             # Trend styrka window
+  volatility_window: 10         # Reducerat från 20 till 10
+  trend_window: 20              # Reducerat från 50 till 20
 
   # Regime transition probabilities (sticky regimes)
   transition_persistence: 0.80  # Sannolikhet att stanna i samma regim

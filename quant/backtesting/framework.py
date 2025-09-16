@@ -118,7 +118,13 @@ class BacktestEngine:
             calibration_end = pd.to_datetime(start_date) + timedelta(days=500)  # Use first 500 days for calibration
             calib_data = self._slice_data(historical_data, start_date, calibration_end.strftime('%Y-%m-%d'))
             if calib_data:
-                engine.calibrate_parameters(*calib_data)
+                calib_prices, calib_sentiment, calib_technical, calib_returns = calib_data
+                engine.calibrate_parameters(
+                    calib_prices,
+                    calib_sentiment,
+                    calib_technical,
+                    returns_df=calib_returns
+                )
 
         # Run simulation
         simulation_results = self._run_simulation(engine, historical_data, start_date, end_date)
@@ -260,6 +266,11 @@ class BacktestEngine:
             # Filter to backtest period
             start_ts = pd.to_datetime(start_date)
             end_ts = pd.to_datetime(end_date)
+
+            # Normalise date columns to pandas Timestamps to avoid datetime.date comparisons
+            for df in (prices, technical, sentiment, returns):
+                if 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'])
 
             prices = prices[(prices['date'] >= start_ts) & (prices['date'] <= end_ts)]
             technical = technical[(technical['date'] >= start_ts) & (technical['date'] <= end_ts)]
@@ -580,7 +591,12 @@ class BacktestEngine:
 
             # Calibrate parameters using training data
             train_prices, train_sentiment, train_technical, train_returns = train_data
-            engine.calibrate_parameters(train_prices, train_sentiment, train_technical, train_returns)
+            engine.calibrate_parameters(
+                train_prices,
+                train_sentiment,
+                train_technical,
+                returns_df=train_returns
+            )
 
         else:
             from ..bayesian.integration import BayesianPolicyEngine

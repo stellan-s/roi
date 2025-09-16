@@ -15,7 +15,40 @@ Traditional risk models assume normal distributions, which severely underestimat
 
 ## Core Components
 
-### 1. Student-t Distribution Modeling
+### 1. Statistical Tail Risk Calculator (NEW)
+
+The system now includes a dedicated `TailRiskCalculator` (`quant/risk/tail_risk_calculator.py`) that provides statistically proper tail risk definitions:
+
+#### Primary Measures
+- **Downside Tail Risk**: P[return < -2σ] (primary measure for portfolio management)
+- **Extreme Move Probability**: P[|return| > 2σ] (secondary measure for uncertainty)
+
+#### Implementation
+```python
+from quant.risk.tail_risk_calculator import TailRiskCalculator
+
+calculator = TailRiskCalculator(confidence_level=0.95)
+tail_metrics = calculator.calculate_tail_risk(
+    ticker="TSLA",
+    historical_returns=returns_series,
+    signals={"momentum": 0.3, "trend": 0.5, "sentiment": 0.2},
+    regime="bear"
+)
+
+# Results include:
+# - downside_tail_risk: P[return < -2σ]
+# - extreme_move_prob: P[|return| > 2σ]
+# - expected_shortfall: E[return | return < -2σ]
+# - distribution_type: "normal", "student_t", or "empirical"
+```
+
+#### Distribution Fitting
+The calculator automatically selects the best-fitting distribution:
+- **Normal Distribution**: For well-behaved assets
+- **Student-t Distribution**: For heavy-tailed assets (most common)
+- **Empirical Distribution**: When parametric models fail
+
+### 2. Student-t Distribution Modeling
 
 #### Theoretical Foundation
 Student-t distributions have an additional parameter (degrees of freedom, ν) that controls tail thickness:
@@ -386,6 +419,7 @@ print(f"  Worst 1%: {mc_results.percentile_1:.1%}")
 ## Implementation Details
 
 ### Core Files
+- `quant/risk/tail_risk_calculator.py` - **NEW**: Statistical tail risk with proper P[return < -2σ] definitions
 - `quant/risk/heavy_tail.py` - Student-t and EVT implementation
 - `quant/risk/analytics.py` - Portfolio risk analytics and stress testing
 

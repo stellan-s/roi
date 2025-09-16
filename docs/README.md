@@ -67,6 +67,7 @@ ROI System
 - **[Regime Detection](regime-detection.md)** - Market classification system
 - **[Risk Modeling](risk-modeling.md)** - Heavy-tail analysis and stress testing
 - **[Portfolio Management](portfolio-management.md)** - Position sizing and optimization
+- **[Backtesting Framework](backtesting.md)** - Historical performance analysis and attribution
 - **[API Reference](api-reference.md)** - Complete function and class documentation
 - **[Examples](examples.md)** - Usage examples and tutorials
 - **[Glossary](glossary.md)** - Terms, formulas, and abbreviations explained
@@ -82,6 +83,9 @@ python -m quant.adaptive_main
 
 # Or run with static parameters (legacy)
 python -m quant.main
+
+# Run comprehensive backtesting
+python -m quant.backtest_runner
 
 # View report
 cat reports/daily_$(date +%Y-%m-%d).md
@@ -157,11 +161,17 @@ The system generates comprehensive daily reports with:
 - **Data Quality Monitoring**: Automatic detection of missing/inconsistent data
 - Comprehensive daily reporting
 
+✅ **Recently Added**:
+- **Comprehensive Backtesting Framework**: Full walk-forward backtesting with train/test splits
+- **Performance Attribution Analysis**: Component-wise performance decomposition
+- **Statistical Tail Risk Calculator**: P[return < -2σ] and P[|return| > 2σ] proper calculations
+- **Enhanced Daily Reports**: VaR indicators, signal attribution, confidence intervals
+- **CLI Backtesting Interface**: Command-line tools for backtesting and comparison analysis
+
 🔄 **In Development**:
-- Backtesting framework
 - Machine learning signal enhancement
 - Real-time data integration
-- Advanced portfolio optimization
+- Advanced multi-asset optimization
 
 ## License
 

@@ -164,21 +164,37 @@ class RegimeDetector:
         # Volatilitet (realized vol)
         features['vol_20d'] = features['ret_1d'].rolling(self.volatility_window).std() * np.sqrt(252)
 
-        # Trend measures
-        features['sma_20'] = market_data.rolling(20).mean()
-        features['sma_50'] = market_data.rolling(50).mean()
-        features['price_vs_sma20'] = (market_data - features['sma_20']) / features['sma_20']
-        features['price_vs_sma50'] = (market_data - features['sma_50']) / features['sma_50']
-        features['sma_slope'] = features['sma_20'].pct_change(5)  # 5-day slope
+        # Trend measures - dynamic window based on available data
+        available_days = len(market_data)
+        sma_short_window = min(10, max(5, available_days // 6))
+        sma_long_window = min(self.trend_window, max(10, available_days // 3))
 
-        # Drawdown från recent high
-        features['rolling_max'] = market_data.rolling(252).max()  # 1 år high
+        features['sma_short'] = market_data.rolling(sma_short_window).mean()
+        features['sma_long'] = market_data.rolling(sma_long_window).mean()
+        features['price_vs_sma_short'] = (market_data - features['sma_short']) / features['sma_short']
+        features['price_vs_sma_long'] = (market_data - features['sma_long']) / features['sma_long']
+        features['sma_slope'] = features['sma_short'].pct_change(min(5, available_days // 10))  # Dynamic slope window
+
+        # Drawdown från recent high (använd mindre window)
+        rolling_max_window = min(60, max(20, available_days // 2))
+        features['rolling_max'] = market_data.rolling(rolling_max_window).max()
         features['drawdown'] = (market_data - features['rolling_max']) / features['rolling_max']
 
         # Trend consistency (% positive days i period)
-        features['positive_days_pct'] = (features['ret_1d'] > 0).rolling(20).mean()
+        positive_days_window = min(20, max(5, available_days // 4))
+        features['positive_days_pct'] = (features['ret_1d'] > 0).rolling(positive_days_window).mean()
 
-        return features.dropna()
+        # Drop NaN men behåll tillräckligt data
+        features_clean = features.dropna()
+
+        # Om för lite data kvar efter dropna, använd forward fill för vissa kolumner
+        if len(features_clean) < max(10, available_days // 3):
+            print(f"⚠️ Få regime features ({len(features_clean)} rows), använder forward fill")
+            features = features.fillna(method='ffill').dropna()
+        else:
+            features = features_clean
+
+        return features
 
     def classify_regime_heuristic(self, features: pd.Series) -> Dict[MarketRegime, float]:
         """
@@ -215,8 +231,8 @@ class RegimeDetector:
         else:
             scores[MarketRegime.NEUTRAL] += 0.3
 
-        # Trend-based classification
-        price_vs_sma = features['price_vs_sma50']
+        # Trend-based classification (använd nya kolumnnamn)
+        price_vs_sma = features['price_vs_sma_long']
         sma_slope = features['sma_slope']
         if price_vs_sma > 0.02 and sma_slope > 0.001:  # Above SMA + rising
             scores[MarketRegime.BULL] += 0.3
@@ -316,7 +332,7 @@ class RegimeDetector:
             "market_features": {
                 "volatility_20d": latest_features['vol_20d'],
                 "return_20d": latest_features['ret_20d'],
-                "price_vs_sma50": latest_features['price_vs_sma50'],
+                "price_vs_sma_long": latest_features['price_vs_sma_long'],
                 "drawdown": latest_features['drawdown'],
                 "positive_days_pct": latest_features['positive_days_pct']
             },
@@ -360,7 +376,7 @@ class RegimeDetector:
         explanation += "**Marknadskontext:**\n"
         explanation += f"- Volatilitet: {features['volatility_20d']*100:.1f}% ({regime_def.volatility_level})\n"
         explanation += f"- 20-dagars avkastning: {features['return_20d']*100:+.1f}%\n"
-        explanation += f"- Position vs SMA-50: {features['price_vs_sma50']*100:+.1f}%\n"
+        explanation += f"- Position vs SMA-long: {features['price_vs_sma_long']*100:+.1f}%\n"
         explanation += f"- Drawdown från high: {features['drawdown']*100:.1f}%\n"
         explanation += f"- Positiva dagar (20d): {features['positive_days_pct']*100:.0f}%\n\n"
 

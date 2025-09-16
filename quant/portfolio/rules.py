@@ -126,6 +126,12 @@ class PortfolioManager:
         # Om alla är i samma regim, reducera exposure
         if len(regime_counts) == 1 and len(active_positions) > 3:
             single_regime = list(regime_counts.keys())[0]
+
+            # KRITISK FIX: Ignorera "unknown" regime för diversification rules
+            if single_regime == 'unknown':
+                print(f"ℹ️ Skipping regime diversification för unknown regime ({len(active_positions)} positioner)")
+                return positions
+
             print(f"⚠️ Regime diversification varning: Alla {len(active_positions)} positioner i {single_regime} regim")
 
             # Behåll bara de starkaste signalerna, men säkerställ minimum antal
