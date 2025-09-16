@@ -1,0 +1,1 @@
+# Backtesting framework for ROI adaptive trading system

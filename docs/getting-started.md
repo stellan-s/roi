@@ -83,6 +83,6 @@ The system generates a comprehensive daily report including:
 
 1. **Review Configuration**: Customize settings in `settings.yaml`
 2. **Explore Documentation**: Read detailed component documentation
-3. **Analyze Results**: Review daily reports and understand recommendations
+3. **Analyze Results**: Review daily reports and inspect the logged artifacts under `data/recommendation_logs/` and `data/portfolio/`
 4. **Backtest**: Implement historical performance analysis
 5. **Customize**: Modify universe, add new signals, or adjust rules

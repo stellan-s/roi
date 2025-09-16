@@ -113,7 +113,7 @@ adaptive_engine.calibrate_parameters(estimated_params)
 
 ### What Gets Learned
 
-#### Signal Normalization
+#### 1. Signal Normalization Parameters
 ```python
 # OLD: Hardcoded scaling
 sentiment_signal = np.clip(sent_score / 2.0, -1.0, 1.0)  # Why /2.0?
@@ -124,27 +124,104 @@ scale_factor = 2.0 / (p95 - p5)  # Based on actual distribution
 sentiment_signal = np.clip(sent_score * scale_factor, -1.0, 1.0)
 ```
 
-#### Regime Effectiveness
+#### 2. Stock-Specific Signal Effectiveness (NEW)
+```python
+# Per-stock Bayesian posteriors learning
+for ticker in universe:
+    for signal_type in [TREND, MOMENTUM, SENTIMENT]:
+        # Update signal effectiveness based on historical performance
+        prediction_accuracy = 1.0 if (signal > 0) == (return > 0) else 0.0
+        posterior['alpha'] += prediction_accuracy * signal_strength
+        posterior['beta'] += (1 - prediction_accuracy) * signal_strength
+
+        # Calculate stock-specific effectiveness
+        effectiveness = posterior['alpha'] / (posterior['alpha'] + posterior['beta'])
+```
+
+#### 3. Regime Effectiveness Multipliers
 ```python
 # OLD: Assumed multipliers
 bull_adjustments = {"momentum": 1.3, "trend": 1.2, "sentiment": 0.8}
 
-# NEW: Empirically estimated
+# NEW: Empirically estimated with confidence intervals
 bull_momentum_correlation = correlation(bull_periods, momentum_signal, returns)
 overall_momentum_correlation = correlation(all_periods, momentum_signal, returns)
 learned_multiplier = bull_momentum_correlation / overall_momentum_correlation
+
+# Bootstrap confidence intervals
+confidence_intervals = bootstrap_regime_effectiveness(regime_data, 500_iterations)
 ```
 
-### Parameter Diagnostics
+#### 4. Statistical Tail Risk Parameters
+```python
+# NEW: Proper statistical tail risk
+downside_tail_risk = P(return < -2σ)  # Primary measure
+extreme_move_prob = P(|return| > 2σ)  # Secondary measure
 
-The system provides diagnostics showing estimated vs default values:
-
+# Distribution fitting (Normal/Student-t/Empirical)
+best_distribution = fit_optimal_distribution(historical_returns)
 ```
-Parameter Changes from Defaults:
-  sentiment_scale_factor: 0.500 → 0.672 (+34.4%)
-  momentum_scale_factor: 2.000 → 1.847 (-7.7%)
-  bull_momentum_effectiveness: 1.300 → 1.290 (-0.8%)
-  bear_sentiment_effectiveness: 1.400 → 1.520 (+8.6%)
+
+### Learning Results and Diagnostics
+
+#### Parameter Estimation Summary
+```python
+learning_summary = engine.get_learning_summary()
+# Output:
+{
+    'status': 'learning_complete',
+    'estimation_date': '2025-09-16T10:30:00',
+    'data_period': {
+        'start': '2023-01-01T00:00:00',
+        'end': '2025-09-15T23:59:59',
+        'total_observations': 15847
+    },
+    'parameter_changes': {
+        'total_parameters': 23,
+        'significant_changes': 8,
+        'avg_change_percent': 12.3,
+        'max_change_percent': 34.4
+    }
+}
+```
+
+#### Detailed Parameter Diagnostics
+```python
+diagnostics = engine.get_parameter_diagnostics()
+# Top parameter changes from defaults:
+  sentiment_scale_factor: 0.500 → 0.672 (+34.4%) [CI: 0.61-0.73, N=1247]
+  momentum_scale_factor: 2.000 → 1.847 (-7.7%) [CI: 1.79-1.90, N=2156]
+  bear_sentiment_effectiveness: 1.400 → 1.520 (+8.6%) [CI: 1.38-1.66, N=287]
+  base_annual_return: 0.080 → 0.073 (-8.8%) [CI: 0.065-0.081, N=1891]
+```
+
+#### Stock-Specific Learning Results
+```python
+# Bayesian Signal Learning Results:
+TREND:
+  Prior effectiveness: 0.620
+  Learned effectiveness: 0.643 (Δ+0.023)
+  Observations: 1456
+  Confidence interval: (0.610, 0.676)
+
+MOMENTUM:
+  Prior effectiveness: 0.680
+  Learned effectiveness: 0.695 (Δ+0.015)
+  Observations: 1891
+  Confidence interval: (0.671, 0.719)
+
+SENTIMENT:
+  Prior effectiveness: 0.580
+  Learned effectiveness: 0.561 (Δ-0.019)
+  Observations: 1247
+  Confidence interval: (0.539, 0.583)
+```
+
+#### Data Quality Monitoring
+```python
+# Automatic data quality checks:
+⚠️ Saknar prisdata för 3 tickers: ERIC-B, TELIA, VOLV-B
+⚠️ Identiska signalvärden för tickers: ASSA-B, ATCO-A. Kontrollera mapping och källdata.
 ```
 
 ## Configuration

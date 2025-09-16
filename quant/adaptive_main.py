@@ -8,6 +8,7 @@ before running the daily analysis, replacing hardcoded values with data-driven e
 import yaml
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
 from typing import Dict, Optional
 
 from quant.data_layer.prices import fetch_prices
@@ -16,6 +17,83 @@ from quant.features.technical import compute_technical_features
 from quant.features.sentiment import naive_sentiment
 from quant.bayesian.adaptive_integration import AdaptiveBayesianEngine
 from quant.reports.daily_brief import save_daily_markdown
+from quant.portfolio.rules import PortfolioManager
+from quant.portfolio.state import PortfolioTracker
+
+
+def _log_data_quality_issues(universe, prices_df: pd.DataFrame, recommendations: pd.DataFrame) -> None:
+    """Log potential data quality issues such as missing tickers or duplicated signal rows."""
+    available_prices = set(prices_df['ticker'].unique()) if not prices_df.empty else set()
+    missing_prices = [ticker for ticker in universe if ticker not in available_prices]
+    if missing_prices:
+        print(f"⚠️ Saknar prisdata för {len(missing_prices)} tickers: {', '.join(sorted(missing_prices))}")
+
+    if recommendations.empty:
+        return
+
+    signal_cols = [
+        'expected_return',
+        'prob_positive',
+        'uncertainty',
+        'trend_weight',
+        'momentum_weight',
+        'sentiment_weight',
+        'tail_risk_score',
+    ]
+
+    present_cols = [col for col in signal_cols if col in recommendations.columns]
+    if not present_cols:
+        return
+
+    duplicate_groups = (
+        recommendations
+        .groupby(present_cols, dropna=False)['ticker']
+        .agg(list)
+        .reset_index()
+    )
+    duplicate_groups = duplicate_groups[duplicate_groups['ticker'].apply(lambda tickers: len(set(tickers)) > 1)]
+
+    if not duplicate_groups.empty:
+        for _, row in duplicate_groups.iterrows():
+            tickers = sorted(set(row['ticker']))
+            print(f"⚠️ Identiska signalvärden för tickers: {', '.join(tickers)}. Kontrollera mapping och källdata.")
+
+
+def _log_recommendations(decisions: pd.DataFrame,
+                         executed_trades,
+                         cache_dir: str) -> None:
+    """Persist daily recommendations and simulated trades for transparent evaluation."""
+    if decisions.empty:
+        print("ℹ️ Inga rekommendationer att logga idag.")
+        return
+
+    log_dir = Path(cache_dir) / "recommendation_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    run_date = pd.to_datetime(decisions['date']).max()
+    run_date_str = pd.to_datetime(run_date).date().isoformat()
+    timestamp = datetime.utcnow().isoformat()
+
+    decisions_to_log = decisions.copy()
+    decisions_to_log['logged_at_utc'] = timestamp
+
+    rec_path = log_dir / f"recommendations_{run_date_str}.parquet"
+    decisions_to_log.to_parquet(rec_path, index=False)
+    print(f"📝 Sparade dagens rekommendationer till {rec_path}")
+
+    trades_path = log_dir / f"simulated_trades_{run_date_str}.json"
+    with open(trades_path, 'w') as f:
+        import json
+        json.dump({
+            'run_date': run_date_str,
+            'logged_at_utc': timestamp,
+            'trades': executed_trades
+        }, f, indent=2)
+
+    if executed_trades:
+        print(f"🧾 Loggade {len(executed_trades)} simulerade affärer till {trades_path}")
+    else:
+        print("ℹ️ Inga simulerade affärer genomfördes idag (logg sparad för spårbarhet).")
 
 def load_configuration() -> Dict:
     """Load configuration from YAML files."""
@@ -99,7 +177,7 @@ def calibrate_adaptive_engine(config: Dict,
 
     return engine
 
-def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> pd.DataFrame:
+def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
     """
     Run the daily analysis using the Bayesian engine.
     """
@@ -128,10 +206,26 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> pd.DataF
 
     senti = naive_sentiment(news, universe)
 
-    # Generate recommendations using adaptive Bayesian engine
+    # Generate raw recommendations using adaptive Bayesian engine
     recommendations = engine.bayesian_score_adaptive(tech, senti, prices)
 
-    return recommendations
+    # Apply portfolio rules for simulated execution
+    portfolio_mgr = PortfolioManager(config)
+    final_decisions = portfolio_mgr.apply_portfolio_rules(recommendations)
+
+    # Update paper portfolio and simulate trades
+    portfolio_tracker = PortfolioTracker(config['data']['cache_dir'] + "/portfolio")
+    latest_date = pd.to_datetime(prices['date']).max()
+    latest_prices = prices[prices['date'] == latest_date][['ticker', 'close']]
+
+    portfolio_tracker.update_portfolio_state(latest_prices, as_of_date=str(latest_date.date()))
+    executed_trades = portfolio_tracker.execute_trades(final_decisions, latest_prices)
+    portfolio_summary = portfolio_tracker.get_portfolio_summary()
+
+    _log_data_quality_issues(universe, prices, final_decisions)
+    _log_recommendations(final_decisions, executed_trades, config['data']['cache_dir'])
+
+    return final_decisions, portfolio_summary
 
 def main():
     """
@@ -172,14 +266,15 @@ def main():
         print(f"  Average change: {learning_summary['parameter_changes']['avg_change_percent']:.1f}%")
 
     # Run daily analysis
-    recommendations = run_daily_analysis(config, engine)
+    recommendations, portfolio_summary = run_daily_analysis(config, engine)
 
     # Generate report
     output_dir = config['run']['outdir']
 
     report_path = save_daily_markdown(
         recommendations,
-        output_dir
+        output_dir,
+        portfolio_summary
     )
 
     print(f"\nReport generated: {report_path}")

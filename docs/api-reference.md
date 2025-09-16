@@ -802,13 +802,146 @@ class ParameterEstimates:
 
 ### AdaptiveBayesianEngine
 
-Extended Bayesian engine with parameter learning.
+Extended Bayesian engine with advanced parameter learning and stock-specific adaptation.
 
 ```python
 class AdaptiveBayesianEngine(BayesianPolicyEngine):
-    def calibrate_parameters(self, ...) -> None
-    def bayesian_score_adaptive(self, ...) -> pd.DataFrame
-    def get_parameter_diagnostics(self) -> pd.DataFrame
+    def __init__(self, config: Optional[Dict] = None)
+```
+
+#### Core Learning Methods
+
+##### calibrate_parameters
+```python
+def calibrate_parameters(self,
+                        prices_df: pd.DataFrame,
+                        sentiment_df: pd.DataFrame,
+                        technical_df: pd.DataFrame,
+                        regime_df: Optional[pd.DataFrame] = None,
+                        returns_df: Optional[pd.DataFrame] = None) -> None:
+    """
+    Calibrate all model parameters from historical data.
+
+    Performs:
+    1. Parameter estimation (signal scaling, regime adjustments)
+    2. Bayesian posterior training (stock-specific effectiveness)
+    3. Historical returns caching (for tail risk calculation)
+
+    Args:
+        prices_df: Historical price data
+        sentiment_df: Historical sentiment data
+        technical_df: Technical indicator data
+        regime_df: Optional regime classification data
+        returns_df: Optional return data for learning
+    """
+```
+
+##### bayesian_score_adaptive
+```python
+def bayesian_score_adaptive(self,
+                           tech: pd.DataFrame,
+                           senti: pd.DataFrame,
+                           prices: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    """
+    Enhanced Bayesian scoring with adaptive parameters and stock-specific learning.
+
+    Features:
+    - Stock-specific signal effectiveness weights
+    - Adaptive signal normalization
+    - Learned regime adjustments
+    - Statistical tail risk calculation
+
+    Returns:
+        DataFrame with adaptive scoring results including tail_risk and extreme_move_prob
+    """
+```
+
+#### Diagnostics and Monitoring
+
+##### get_parameter_diagnostics
+```python
+def get_parameter_diagnostics(self) -> pd.DataFrame:
+    """
+    Get detailed parameter estimation diagnostics.
+
+    Returns:
+        DataFrame with columns:
+        - parameter_name: Parameter identifier
+        - estimated_value: Learned value
+        - default_value: Original hardcoded value
+        - change_percent: Percentage change from default
+        - confidence_interval: (lower, upper) bounds
+        - estimation_method: How parameter was learned
+        - n_observations: Data points used
+        - parameter_type: Category (signal_processing, regime_adjustment, etc.)
+    """
+```
+
+##### get_learning_summary
+```python
+def get_learning_summary(self) -> Dict:
+    """
+    Get comprehensive summary of parameter learning results.
+
+    Returns:
+        Dict with:
+        - status: 'learning_complete' | 'no_learning_performed'
+        - estimation_date: When parameters were estimated
+        - data_period: {start, end, total_observations}
+        - parameter_changes: {total_parameters, significant_changes, avg_change_percent}
+        - top_changes: List of most significant parameter changes
+    """
+```
+
+#### Stock-Specific Learning (NEW)
+
+##### _train_bayesian_posteriors
+```python
+def _train_bayesian_posteriors(self, ...) -> None:
+    """
+    Train stock-specific Bayesian signal effectiveness posteriors.
+
+    For each stock-signal combination:
+    1. Updates Beta distribution parameters based on prediction accuracy
+    2. Weights updates by signal strength
+    3. Tracks confidence based on number of observations
+    """
+```
+
+##### _get_stock_specific_weights
+```python
+def _get_stock_specific_weights(self,
+                               ticker: str,
+                               signals: Dict[SignalType, float]) -> Dict[SignalType, float]:
+    """
+    Calculate stock-specific signal weights based on learned effectiveness.
+
+    Weight = effectiveness * signal_strength * confidence_multiplier
+
+    Args:
+        ticker: Stock ticker
+        signals: Current signal values
+
+    Returns:
+        Normalized weights for signal combination
+    """
+```
+
+#### Data Quality Monitoring (NEW)
+
+##### _log_data_quality_issues
+```python
+def _log_data_quality_issues(universe: List[str],
+                            prices_df: pd.DataFrame,
+                            recommendations: pd.DataFrame) -> None:
+    """
+    Log potential data quality issues.
+
+    Detects:
+    - Missing price data for tickers
+    - Identical signal values across different tickers
+    - Potential data mapping issues
+    """
 ```
 
 ## Error Handling

@@ -78,13 +78,14 @@ class PortfolioManager:
         # Skapa PortfolioPosition objects
         positions = []
         for _, row in latest_decisions.iterrows():
+            regime_value = row['market_regime'] if 'market_regime' in row else 'unknown'
             pos = PortfolioPosition(
                 ticker=row['ticker'],
                 weight=0.0,  # Kommer beräknas
                 decision=row['decision'],
                 expected_return=row['expected_return'],
                 prob_positive=row['prob_positive'],
-                regime=row['market_regime'],
+                regime=regime_value,
                 decision_confidence=row['decision_confidence']
             )
             positions.append(pos)

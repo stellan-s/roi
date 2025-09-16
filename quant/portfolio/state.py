@@ -245,7 +245,7 @@ class PortfolioTracker:
                     'value': cost,
                     'expected_return': row['expected_return'],
                     'prob_positive': row['prob_positive'],
-                    'regime': row['market_regime'],
+                    'regime': row.get('market_regime', row.get('regime', 'unknown')),
                     'decision_confidence': row['decision_confidence']
                 }
 

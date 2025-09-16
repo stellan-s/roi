@@ -131,6 +131,17 @@ def save_state(self, filepath: str = "data/portfolio_state.json"):
     }
 ```
 
+### Evaluation & Logging
+
+Daily runs now create a transparent audit trail for both the simulated portfolio and the raw recommendations:
+
+- `data/portfolio/current_state.json` – latest paper-portfolio snapshot (cash, holdings, unrealized P&L)
+- `data/portfolio/trade_history.json` – append-only log of simulated BUY trades with timestamp, size, and Bayesian metrics at execution
+- `data/recommendation_logs/recommendations_YYYY-MM-DD.parquet` – portfolio-adjusted recommendations (E[r]_1d, E[R]_21d, Pr(↑), σ, tail metrics, decision confidence) for the run date plus a UTC `logged_at_utc`
+- `data/recommendation_logs/simulated_trades_YYYY-MM-DD.json` – executed paper trades for the same session, stored alongside the recommendation file for quick comparison
+
+These artifacts are produced by `quant/adaptive_main.py` after applying portfolio rules, making it easy to backtest hit rates, compute Brier scores, or reconcile portfolio P&L against the original recommendations.
+
 ### Trade Execution Simulation
 
 #### Trade Processing

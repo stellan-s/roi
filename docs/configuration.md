@@ -254,12 +254,75 @@ risk_modeling:
     high: 0.8
 ```
 
+## Adaptive System Usage
+
+### Running with Parameter Learning
+
+To use the adaptive system instead of hardcoded parameters:
+
+```python
+# Use adaptive_main.py instead of main.py
+python -m quant.adaptive_main
+```
+
+This will:
+1. **Calibrate parameters** from historical data (1000+ days)
+2. **Train stock-specific Bayesian posteriors**
+3. **Generate learning diagnostics** showing parameter changes
+4. **Run daily analysis** with learned parameters
+
+### Learning Summary Output
+```
+=== Parameter Estimation Results ===
+Top parameter changes from defaults:
+  sentiment_scale_factor: 0.500 → 0.672 (+34.4%)
+  momentum_scale_factor: 2.000 → 1.847 (-7.7%)
+  bear_sentiment_effectiveness: 1.400 → 1.520 (+8.6%)
+
+Learning Summary:
+  Total parameters estimated: 23
+  Significant changes (>10%): 8
+  Average change: 12.3%
+```
+
+### Configuration for Learning
+
+The learning system respects configuration settings for thresholds and limits but learns the core signal processing parameters:
+
+```yaml
+# What stays configurable (business decisions)
+bayesian:
+  time_horizon_days: 21              # Investment horizon
+  decision_thresholds:
+    buy_probability: 0.58            # Risk tolerance
+    sell_probability: 0.40
+    min_expected_return: 0.0005
+
+# What gets learned (signal processing)
+# These sections still provide fallback defaults:
+  priors:
+    trend_effectiveness: 0.62        # → Learned from data
+    momentum_effectiveness: 0.68     # → Learned from data
+    sentiment_effectiveness: 0.58    # → Learned from data
+
+  parameter_learning:
+    enabled: true                    # Enable adaptive learning
+    calibration_lookback: 1000       # Data period for learning
+    min_observations: 100            # Minimum data for reliable estimates
+```
+
 ## Environment-Specific Configuration
 
 ### Development Environment
 ```yaml
 data:
   lookback_days: 100           # Shorter history for faster testing
+
+# Reduce learning complexity for development
+bayesian:
+  parameter_learning:
+    calibration_lookback: 500  # Less historical data
+    bootstrap_iterations: 100  # Fewer bootstrap samples
 
 risk_modeling:
   monte_carlo_simulations: 1000 # Fewer simulations for speed

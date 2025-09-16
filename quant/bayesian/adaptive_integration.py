@@ -311,10 +311,14 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         merged = pd.merge(tech, senti, on='ticker', how='left')
         merged["sent_score"] = merged["sent_score"].fillna(0).infer_objects()
 
-        # Add current prices if available
+        # Add current prices if available (tech already has close prices, but might be outdated)
         if prices is not None:
             current_prices = prices.groupby('ticker')['close'].last().reset_index()
+            current_prices = current_prices.rename(columns={'close': 'current_close'})
             merged = pd.merge(merged, current_prices, on='ticker', how='left')
+            # Use the most recent price data
+            merged['close'] = merged['current_close'].fillna(merged['close'])
+            merged = merged.drop(columns=['current_close'])
 
         results = []
         for _, row in merged.iterrows():
@@ -335,13 +339,19 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
             # Manual signal combination using stock-specific weights
             combined_signal = sum(stock_weights[st] * signals[st] for st in signals.keys())
+            combined_signal = float(np.clip(combined_signal, -3.0, 3.0))
 
-            # Convert to probability and expected return (same logic as BayesianSignalEngine)
-            prob_positive = 1 / (1 + np.exp(-3 * combined_signal))
+            # Convert to probability and expected return using calibrated parameters
+            if self.estimated_params and self.estimated_params.sigmoid_scale_factor.n_observations >= 0:
+                sigmoid_scale = self.estimated_params.sigmoid_scale_factor.value
+            else:
+                sigmoid_scale = getattr(self.engine, '_sigmoid_scale', 3.0)
 
-            # Use learned base return if available
+            prob_positive = 1 / (1 + np.exp(-sigmoid_scale * combined_signal))
+
             base_return = self.estimated_params.base_annual_return.value if self.estimated_params else 0.08
-            expected_return = (combined_signal * 0.02) + (base_return / 252)  # Daily return
+            signal_multiplier = self.estimated_params.signal_multiplier.value if self.estimated_params else 1.0
+            expected_return = base_return * (1 + signal_multiplier * combined_signal) / 252
 
             # Calculate uncertainty (simplified)
             uncertainty = 1.0 - max(stock_weights.values())  # Higher when weights are more equal
@@ -374,8 +384,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                 'sentiment_weight': output.signal_weights.get(SignalType.SENTIMENT, 0),
                 'regime': self.current_regime.value if self.current_regime else 'unknown',
                 'regime_confidence': self.regime_probabilities[self.current_regime] if self.current_regime and self.regime_probabilities else 0.33,
-                'tail_risk': self._calculate_statistical_tail_risk(row['ticker'], signals)[0],  # P[return < -2σ]
-                'extreme_move_prob': self._calculate_statistical_tail_risk(row['ticker'], signals)[1],  # P[|return| > 2σ]
+                **self._get_tail_risk_metrics(row['ticker'], signals),
                 'monte_carlo_prob_gain_20': 0.0,
                 'monte_carlo_prob_loss_20': 0.0
             })
@@ -543,6 +552,15 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         """
         Prepare historical signal values aligned with forward returns for training.
         """
+        # Ensure all inputs use consistent datetime types before joining.
+        technical_df = technical_df.copy()
+        sentiment_df = sentiment_df.copy()
+        returns_df = returns_df.copy()
+
+        for frame in (technical_df, sentiment_df, returns_df):
+            if 'date' in frame.columns and not np.issubdtype(frame['date'].dtype, np.datetime64):
+                frame['date'] = pd.to_datetime(frame['date'], utc=False)
+
         # Merge all data sources
         historical = pd.merge(technical_df, sentiment_df, on=['ticker', 'date'], how='left')
         historical['sent_score'] = historical['sent_score'].fillna(0)
@@ -739,6 +757,16 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         )
 
         return tail_metrics.downside_tail_risk, tail_metrics.extreme_move_prob
+
+    def _get_tail_risk_metrics(self, ticker: str, signals: Dict[SignalType, float]) -> Dict[str, float]:
+        """
+        Get tail risk metrics as a dictionary for efficient single calculation.
+        """
+        tail_risk, extreme_move_prob = self._calculate_statistical_tail_risk(ticker, signals)
+        return {
+            'tail_risk': tail_risk,
+            'extreme_move_prob': extreme_move_prob
+        }
 
     def _calculate_tail_risk_legacy(self, row: pd.Series, signals: Dict[SignalType, float]) -> float:
         """
