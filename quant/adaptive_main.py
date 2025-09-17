@@ -291,6 +291,19 @@ def main():
         print(f"  Significant changes (>10%): {learning_summary['parameter_changes']['significant_changes']}")
         print(f"  Average change: {learning_summary['parameter_changes']['avg_change_percent']:.1f}%")
 
+    # Show factor profile diagnostics
+    print("\n=== Factor Profile System ===")
+    factor_diagnostics = engine.get_factor_profile_diagnostics()
+    if not factor_diagnostics.empty:
+        print("Stock factor categories:")
+        for _, row in factor_diagnostics.iterrows():
+            print(f"  {row['category']}: {row['stock_count']} stocks")
+            print(f"    Momentum: {row['momentum_weight']:.1f}x, Sentiment: {row['sentiment_weight']:.1f}x")
+            print(f"    Bull regime: {row['bull_multiplier']:.1f}x, Bear regime: {row['bear_multiplier']:.1f}x")
+            print(f"    Examples: {row['stocks']}")
+    else:
+        print("Factor profiles disabled or not configured")
+
     # Run daily analysis
     recommendations, portfolio_summary = run_daily_analysis(config, engine)
 

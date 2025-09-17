@@ -13,6 +13,7 @@ from .integration import BayesianPolicyEngine
 from ..regime.detector import RegimeDetector, MarketRegime
 from ..risk.analytics import RiskAnalytics, PortfolioRiskProfile
 from ..adaptive.parameter_estimator import ParameterEstimator, ParameterEstimates
+from ..factors.profile_engine import StockFactorProfileEngine
 
 class AdaptiveBayesianEngine(BayesianPolicyEngine):
     """
@@ -22,6 +23,10 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
     def __init__(self, config: Optional[Dict] = None):
         super().__init__(config)
         self.parameter_estimator = ParameterEstimator()
+
+        # Initialize factor profile engine
+        self.factor_engine = StockFactorProfileEngine(config or {})
+
         # Initialize tail risk calculator if available
         try:
             from ..risk.tail_risk_calculator import TailRiskCalculator
@@ -292,6 +297,14 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
         return summary
 
+    def get_factor_profile_diagnostics(self) -> pd.DataFrame:
+        """Get diagnostics about factor profiles and their application."""
+        return self.factor_engine.get_profile_diagnostics()
+
+    def explain_stock_factors(self, ticker: str) -> str:
+        """Get explanation of factor profile for a specific stock."""
+        return self.factor_engine.explain_stock_factors(ticker)
+
     def _normalize_signals_adaptive(self, row: pd.Series) -> Dict[SignalType, float]:
         """
         Adaptive signal normalization using estimated parameters instead of hardcoded values.
@@ -474,7 +487,20 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                 'monte_carlo_prob_loss_20': 0.0
             })
 
-        return pd.DataFrame(results)
+        # Convert to DataFrame for factor profile processing
+        results_df = pd.DataFrame(results)
+
+        # Apply stock-specific factor profiles if enabled
+        if self.factor_engine.enabled and not results_df.empty:
+            current_regime_str = self.current_regime.value if self.current_regime else 'neutral'
+
+            # Apply factor adjustments
+            results_df = self.factor_engine.apply_factor_adjustments(results_df, current_regime_str)
+
+            # Apply dynamic filtering to focus on best opportunities
+            results_df = self.factor_engine.filter_investable_universe(results_df)
+
+        return results_df
 
     def get_parameter_diagnostics(self) -> pd.DataFrame:
         """

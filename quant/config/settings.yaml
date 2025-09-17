@@ -166,3 +166,107 @@ risk_analytics:
   risk_free_rate: 0.02                    # 2% annual risk-free rate
   target_portfolio_volatility: 0.15       # 15% target vol
   tail_risk_penalty: 0.02                 # Extra penalty för heavy tails
+
+# Stock-Specific Factor Profile System
+stock_factor_profiles:
+  enabled: true
+
+  # Dynamic filtering for investable universe
+  dynamic_filtering:
+    cost_threshold: 0.003        # 30bps min expected return to cover costs
+    conviction_threshold: 0.6    # 60% min decision confidence
+    max_positions: 20            # Focus portfolio on top opportunities
+    min_liquidity_mcap: 1000     # Minimum market cap (MSEK) for liquidity
+
+  # Factor profile categories
+  categories:
+    swedish_banks:
+      description: "Swedish financial institutions - rate sensitive"
+      stocks: ["SEB-A.ST", "SWED-A.ST", "SHB-A.ST", "NDA-SE.ST"]
+      factor_weights:
+        momentum: 0.4            # Banks less momentum-driven
+        sentiment: 0.6           # Moderate news sensitivity
+        interest_rate_sensitivity: 0.9  # Critical factor for banks
+        credit_cycle: 0.8        # Loan demand and credit risk
+      regime_multipliers:
+        bull: 1.2               # Benefit from economic growth
+        bear: 0.7               # Defensive characteristics
+        neutral: 1.0
+
+    swedish_industrials:
+      description: "Swedish industrial/cyclical companies"
+      stocks: ["VOLV-B.ST", "ATCO-A.ST", "ATCO-B.ST", "SAND.ST", "SKF-B.ST", "ABB.ST", "ALFA.ST", "EPI-A.ST"]
+      factor_weights:
+        momentum: 0.6           # Moderate momentum sensitivity
+        sentiment: 0.5          # Less news-driven, more fundamental
+        economic_cycle: 0.9     # Highly sensitive to GDP/PMI
+        commodity_exposure: 0.7 # Input cost sensitivity
+      regime_multipliers:
+        bull: 1.3               # High leverage to growth
+        bear: 0.6               # Cyclical downturns hurt
+        neutral: 0.9
+
+    swedish_consumer:
+      description: "Swedish consumer discretionary/retail"
+      stocks: ["HM-B.ST", "DUNI.ST", "CLAS-B.ST", "ELUX-B.ST"]
+      factor_weights:
+        momentum: 0.5           # Consumer trends can persist
+        sentiment: 0.9          # Very news/sentiment sensitive
+        consumer_confidence: 0.8 # Discretionary spending driver
+        sek_strength: 0.6       # Import/export sensitivity
+      regime_multipliers:
+        bull: 1.1               # Moderate growth leverage
+        bear: 0.8               # Defensive in downturns
+        neutral: 1.0
+
+    swedish_tech:
+      description: "Swedish technology and telecom"
+      stocks: ["ERIC-B.ST", "TEL2-B.ST", "HEXA-B.ST", "EVO.ST", "ENEA.ST", "CEVI.ST"]
+      factor_weights:
+        momentum: 0.8           # Tech can be momentum-driven
+        sentiment: 0.8          # Innovation/disruption news sensitive
+        growth_expectations: 0.9 # Valuation based on growth
+        tech_sector_rotation: 0.7 # Sector-specific flows
+      regime_multipliers:
+        bull: 1.4               # High growth premium in bull markets
+        bear: 0.5               # Heavy sell-off in bear markets
+        neutral: 0.8
+
+    us_tech_giants:
+      description: "Large cap US technology leaders"
+      stocks: ["GOOGL", "MSFT", "NVDA", "AAPL", "META", "AMZN"]
+      factor_weights:
+        momentum: 0.9           # Very momentum-driven
+        sentiment: 0.9          # AI/innovation news critical
+        fed_policy: 0.8         # Rate sensitive (growth valuations)
+        ai_innovation: 0.9      # AI theme driving valuations
+      regime_multipliers:
+        bull: 1.5               # Extreme leverage to risk-on sentiment
+        bear: 0.4               # Heavy de-risking target
+        neutral: 0.7
+
+    energy_commodities:
+      description: "Energy and commodity-driven names"
+      stocks: ["BOL.ST", "EQT.ST", "TSLA"]  # Mining, oil/gas, EV transition
+      factor_weights:
+        momentum: 0.7           # Commodity trends persist
+        sentiment: 0.6          # Moderate news sensitivity
+        commodity_prices: 0.95  # Direct commodity exposure
+        energy_transition: 0.8  # ESG/transition themes
+      regime_multipliers:
+        bull: 1.2               # Risk-on commodity demand
+        bear: 0.8               # Defensive commodity demand
+        neutral: 1.1
+
+    defensive_quality:
+      description: "Defensive high-quality companies"
+      stocks: ["AZN.ST", "ESSITY-B.ST", "NIBE-B.ST", "ASSA-B.ST", "LIFCO-B.ST", "INVE-B.ST"]
+      factor_weights:
+        momentum: 0.3           # Less momentum-sensitive
+        sentiment: 0.4          # Less news-driven
+        quality_metrics: 0.9    # ROE, debt levels, margins
+        dividend_yield: 0.7     # Income characteristics
+      regime_multipliers:
+        bull: 0.8               # Underperform in risk-on
+        bear: 1.2               # Outperform in risk-off
+        neutral: 1.1
