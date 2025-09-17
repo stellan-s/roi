@@ -173,8 +173,8 @@ stock_factor_profiles:
 
   # Dynamic filtering for investable universe
   dynamic_filtering:
-    cost_threshold: 0.003        # 30bps min expected return to cover costs
-    conviction_threshold: 0.6    # 60% min decision confidence
+    cost_threshold: 0.001        # 10bps min expected return to cover costs (more lenient)
+    conviction_threshold: 0.4    # 40% min decision confidence (more lenient for testing)
     max_positions: 20            # Focus portfolio on top opportunities
     min_liquidity_mcap: 1000     # Minimum market cap (MSEK) for liquidity
 
