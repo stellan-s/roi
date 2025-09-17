@@ -4,7 +4,7 @@ run:
 
 data:
   cache_dir: "data"
-  lookback_days: 500   # Back to original value to prevent hanging
+  lookback_days: 100   # Reduced to prevent hanging during debugging
 
 signals:
   sma_long: 50         # Reduced from 200 to 50 for more responsive trend signal
@@ -114,20 +114,24 @@ risk_budgeting:
   enabled: true
 
   # Position sizing constraints
-  max_position_weight: 0.15          # Max 15% per stock (vs old 10%)
-  max_factor_concentration: 0.35     # Max 35% per factor category
-  min_positions: 5                   # Minimum diversification
+  max_position_weight: 0.10          # Max 10% per stock (reduced from 15%)
+  max_factor_concentration: 0.25     # Max 25% per factor category (reduced from 35%)
+  min_positions: 8                   # Minimum diversification (increased from 5)
   max_positions: 20                  # Focus constraint (vs unlimited)
 
   # Risk adjustment parameters
   tail_risk_penalty_factor: 0.5      # Penalty multiplier for high tail risk
-  uncertainty_penalty_factor: 2.0    # Penalty multiplier for high uncertainty
+  uncertainty_penalty_factor: 3.0    # Penalty multiplier for high uncertainty (increased from 2.0)
 
   # Regime-specific allocation constraints
   regime_allocation_multipliers:
     bull: 1.0                        # 100% allocation in bull markets
     bear: 0.7                        # 70% allocation in bear markets (more conservative)
     neutral: 0.85                    # 85% allocation in neutral markets
+
+  # Volatility targeting
+  target_portfolio_volatility: 0.15   # Target 15% annual volatility
+  volatility_penalty_factor: 2.0      # Penalize high-vol positions
 
 # Statistisk Tail Risk Analys (NY: ersätter heuristisk tail risk)
 tail_risk:
@@ -191,10 +195,10 @@ risk_analytics:
 stock_factor_profiles:
   enabled: true
 
-  # Dynamic filtering for investable universe
+  # Dynamic filtering for investable universe (temporarily relaxed for testing)
   dynamic_filtering:
-    cost_threshold: 0.001        # 10bps min expected return to cover costs (more lenient)
-    conviction_threshold: 0.4    # 40% min decision confidence (more lenient for testing)
+    cost_threshold: 0.0005       # 5bps min expected return (very lenient for testing)
+    conviction_threshold: 0.3    # 30% min decision confidence (relaxed for testing)
     max_positions: 20            # Focus portfolio on top opportunities
     min_liquidity_mcap: 1000     # Minimum market cap (MSEK) for liquidity
 

@@ -214,7 +214,10 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
     senti = naive_sentiment(news, universe)
 
     # Generate raw recommendations using adaptive Bayesian engine with VIX
-    recommendations = engine.bayesian_score_adaptive(tech, senti, prices, vix_data)
+    # CRITICAL FIX: Use only latest data per ticker to prevent data explosion
+    latest_tech = tech.groupby('ticker').tail(1)
+    print(f"🔍 Using latest tech data: {latest_tech.shape} (from {tech.shape} total)")
+    recommendations = engine.bayesian_score_adaptive(latest_tech, senti, prices, vix_data)
 
     # Apply portfolio rules for simulated execution
     portfolio_mgr = PortfolioManager(config)

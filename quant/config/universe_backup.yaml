@@ -1,0 +1,53 @@
+tickers:
+  # Large Cap (OMXS30 m.fl.)
+  - VOLV-B.ST     # Volvo B
+  - INVE-B.ST     # Investor B
+  - ERIC-B.ST     # Ericsson B
+  - SAND.ST       # Sandvik
+  - ATCO-A.ST     # Atlas Copco A
+  - HM-B.ST       # Hennes & Mauritz B
+  - SKF-B.ST      # SKF B
+  - TEL2-B.ST     # Tele2 B
+  - NIBE-B.ST     # Nibe B
+  - SWED-A.ST     # Swedbank A
+  - ASSA-B.ST     # Assa Abloy B
+  - ABB.ST        # ABB
+  - ALFA.ST       # Alfa Laval
+  - AZN.ST        # AstraZeneca
+  - ATCO-B.ST     # Atlas Copco B
+  - BOL.ST        # Boliden
+  - EPI-A.ST      # Epiroc A
+  - EQT.ST        # EQT
+  - ESSITY-B.ST   # Essity B
+  - EVO.ST        # Evolution
+  - HEXA-B.ST     # Hexagon B
+  - INDU-C.ST     # Industrivärden C
+  - LIFCO-B.ST    # Lifco B
+  - NDA-SE.ST     # Nordea
+  - SAAB-B.ST     # Saab B
+  - SCA-B.ST      # SCA B
+  - SEB-A.ST      # SEB A
+  - SKA-B.ST      # Skanska B
+  - TELIA.ST      # Telia
+  - SHB-A.ST      # Handelsbanken A
+  - ELUX-B.ST     # Electrolux B
+  - GETI-B.ST     # Getinge B
+  - KINV-B.ST     # Kinnevik B
+  - ADDT-B.ST     # Addtech B
+
+  # Mid Cap (exempel)
+  - BIOG-B.ST     # BioGaia B
+  - CLAS-B.ST     # Clas Ohlson B
+  - CEVI.ST       # CellaVision
+  - DUNI.ST       # Duni
+  - ELAN-B.ST     # Elanders B
+  - ENEA.ST       # Enea
+
+  # USA
+  - AAPL          # Apple
+  - MSFT          # Microsoft
+  - GOOGL         # Alphabet
+  - AMZN          # Amazon
+  - TSLA          # Tesla
+  - META          # Meta Platforms
+  - NVDA          # NVIDIA
