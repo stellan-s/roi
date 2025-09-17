@@ -82,41 +82,41 @@ class PortfolioManager:
         if latest_decisions.empty:
             return decisions
 
-        # Deduplicate recommendations by ticker (take mean of numeric values, most common for decisions)
-        print(f"🔍 Before deduplication: {len(latest_decisions)} recommendations")
+        # Check for unexpected duplicates (should be rare now that backtesting is fixed)
         duplicate_count = latest_decisions['ticker'].value_counts()
         if (duplicate_count > 1).any():
-            print(f"⚠️ Found duplicates: {dict(duplicate_count[duplicate_count > 1])}")
+            print(f"⚠️ Unexpected duplicates found: {dict(duplicate_count[duplicate_count > 1])}")
 
-        # Group by ticker and aggregate - preserve ALL critical columns
-        agg_dict = {
-            'date': 'first',
-            'close': 'last',  # Most recent price
-            'decision': lambda x: x.mode().iloc[0],  # Most common decision
-            'expected_return': 'mean',
-            'prob_positive': 'mean',
-            'decision_confidence': 'mean',
-            'uncertainty': 'mean',
-            'trend_weight': 'mean',
-            'momentum_weight': 'mean',
-            'sentiment_weight': 'mean',
-            'regime': lambda x: x.mode().iloc[0],  # Most common regime
-            'regime_confidence': 'mean',
-            'tail_risk': 'mean',
-            'extreme_move_prob': 'mean',
-            'monte_carlo_prob_gain_20': 'mean',
-            'monte_carlo_prob_loss_20': 'mean',
-            'portfolio_weight': 'mean',  # Will be recalculated anyway
-            'portfolio_adjusted': 'first'
-        }
+            # Group by ticker and aggregate - preserve ALL critical columns
+            agg_dict = {
+                'date': 'first',
+                'close': 'last',  # Most recent price
+                'decision': lambda x: x.mode().iloc[0],  # Most common decision
+                'expected_return': 'mean',
+                'prob_positive': 'mean',
+                'decision_confidence': 'mean',
+                'uncertainty': 'mean',
+                'trend_weight': 'mean',
+                'momentum_weight': 'mean',
+                'sentiment_weight': 'mean',
+                'regime': lambda x: x.mode().iloc[0],  # Most common regime
+                'regime_confidence': 'mean',
+                'tail_risk': 'mean',
+                'extreme_move_prob': 'mean',
+                'monte_carlo_prob_gain_20': 'mean',
+                'monte_carlo_prob_loss_20': 'mean',
+                'portfolio_weight': 'mean',  # Will be recalculated anyway
+                'portfolio_adjusted': 'first'
+            }
 
-        # Only aggregate columns that exist in the DataFrame
-        available_cols = latest_decisions.columns
-        final_agg_dict = {k: v for k, v in agg_dict.items() if k in available_cols}
+            # Only aggregate columns that exist in the DataFrame
+            available_cols = latest_decisions.columns
+            final_agg_dict = {k: v for k, v in agg_dict.items() if k in available_cols}
 
-        latest_decisions = latest_decisions.groupby('ticker').agg(final_agg_dict).reset_index()
-
-        print(f"✅ After deduplication: {len(latest_decisions)} unique recommendations")
+            latest_decisions = latest_decisions.groupby('ticker').agg(final_agg_dict).reset_index()
+            print(f"✅ After deduplication: {len(latest_decisions)} unique recommendations")
+        else:
+            print(f"✅ No duplicates found: {len(latest_decisions)} unique recommendations")
 
         # Skapa PortfolioPosition objects with all available attributes
         positions = []
