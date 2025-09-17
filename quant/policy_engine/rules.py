@@ -65,6 +65,63 @@ def get_signal_history() -> pd.DataFrame:
 
 def get_regime_info() -> dict:
     """Hämta aktuell marknadsregim information"""
+    try:
+        # Try to get regime info from latest recommendations file
+        import os
+        from pathlib import Path
+        from datetime import datetime
+
+        # Look for today's recommendations file
+        today = datetime.now().strftime("%Y-%m-%d")
+        rec_file = Path(f"data/recommendation_logs/recommendations_{today}.parquet")
+
+        if rec_file.exists():
+            recs = pd.read_parquet(rec_file)
+            # Check for either column name (market_regime or regime)
+            regime_col = None
+            if 'market_regime' in recs.columns:
+                regime_col = 'market_regime'
+            elif 'regime' in recs.columns:
+                regime_col = 'regime'
+
+            if not recs.empty and regime_col:
+                # Calculate regime distribution across stocks
+                regime_counts = recs[regime_col].value_counts()
+                total_stocks = len(recs)
+
+                # Get the most common regime
+                most_common_regime = regime_counts.index[0]
+                regime_percentage = (regime_counts.iloc[0] / total_stocks) * 100
+
+                # Map regime names to display format
+                regime_display = {
+                    'bull': 'Bull Market',
+                    'bear': 'Bear Market',
+                    'neutral': 'Neutral Market',
+                    'unknown': 'Unknown'
+                }.get(most_common_regime, most_common_regime.title())
+
+                # Create distribution summary
+                regime_distribution = []
+                for regime, count in regime_counts.items():
+                    pct = (count / total_stocks) * 100
+                    display_name = {
+                        'bull': 'Bull',
+                        'bear': 'Bear',
+                        'neutral': 'Neutral',
+                        'unknown': 'Unknown'
+                    }.get(regime, regime)
+                    regime_distribution.append(f"{display_name}: {count} stocks ({pct:.0f}%)")
+
+                return {
+                    "regime": regime_display,
+                    "confidence": regime_percentage / 100,
+                    "explanation": f"Stock regime distribution: {', '.join(regime_distribution)}"
+                }
+    except Exception as e:
+        print(f"Failed to load regime from recommendations: {e}")
+
+    # Fallback to engine if file-based approach fails
     engine = get_bayesian_engine()
     return engine.get_regime_info()
 

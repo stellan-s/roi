@@ -4,11 +4,11 @@ run:
 
 data:
   cache_dir: "data"
-  lookback_days: 500   # Historisk data för regime detection
+  lookback_days: 500   # Back to original value to prevent hanging
 
 signals:
-  sma_long: 200        # SMA för trend signal
-  momentum_window: 252 # Årsmomemtum (252 trading days)
+  sma_long: 50         # Reduced from 200 to 50 for more responsive trend signal
+  momentum_window: 126 # Reduced from 252 to 126 (6 months vs 12 months)
   news_feed_urls:
     - "https://news.cision.com/se/rss/all"
 
@@ -16,10 +16,10 @@ signals:
 bayesian:
   time_horizon_days: 21          # Investeringshorisont för E[r] och Pr(↑)
   decision_thresholds:
-    buy_probability: 0.58        # Köp när Pr(↑) ≥ 58% (mer aggressiv)
-    sell_probability: 0.40       # Sälj när Pr(↑) ≤ 40% (mer aggressiv)
-    min_expected_return: 0.0005  # Minimum 0.05% daglig E[r] för köp (lägre)
-    max_uncertainty: 0.35        # Max osäkerhet för action (tolerera mer)
+    buy_probability: 0.55        # Köp när Pr(↑) ≥ 55% (more realistic)
+    sell_probability: 0.45       # Sälj när Pr(↑) ≤ 45% (more realistic)
+    min_expected_return: 0.0002  # Minimum 0.02% daglig E[r] för köp (more realistic)
+    max_uncertainty: 0.50        # Max osäkerhet för action (accept more uncertainty)
 
   # Prior beliefs för signaler (kan justeras baserat på backtest)
   priors:
@@ -46,30 +46,30 @@ bayesian:
 regime_detection:
   enabled: true
   lookback_days: 60             # Regime detection window
-  volatility_window: 10         # Reducerat från 20 till 10
-  trend_window: 20              # Reducerat från 50 till 20
+  volatility_window: 20         # Increased from 10 to 20 for stability
+  trend_window: 50              # Increased from 20 to 50 for better trends
 
   # Regime transition probabilities (sticky regimes)
   transition_persistence: 0.80  # Sannolikhet att stanna i samma regim
 
-  # Regime classification thresholds
+  # Regime classification thresholds (less aggressive)
   thresholds:
-    volatility_low: 0.15        # 15% årlig vol = låg
-    volatility_high: 0.25       # 25% årlig vol = hög
-    return_bull: 0.002          # 0.2% daglig för bull
-    return_bear: -0.002         # -0.2% daglig för bear
-    drawdown_bear: -0.10        # -10% drawdown → bear
+    volatility_low: 0.12        # 12% årlig vol = låg (lowered from 0.15)
+    volatility_high: 0.30       # 30% årlig vol = hög (raised from 0.25)
+    return_bull: 0.003          # 0.3% daglig för bull (raised from 0.002)
+    return_bear: -0.003         # -0.3% daglig för bear (lowered from -0.002)
+    drawdown_bear: -0.15        # -15% drawdown → bear (lowered from -0.10)
 
 policy:
   max_weight: 0.10             # Max position size per aktie
   pre_earnings_freeze_days: 5  # Disciplinmotor: ingen handel före earnings
-  trade_cost_bps: 5           # Transaction costs (lägre för mer trades)
+  trade_cost_bps: 3           # Transaction costs (lägre för mer trades och backtesting)
 
   # Portfolio-nivå regler
   max_single_regime_exposure: 0.85  # Max 85% i samma regim (mer tillåtande)
   regime_diversification: true      # Kräv regim-diversifiering
   min_portfolio_positions: 3        # Minst 3 aktiva positioner
-  bear_market_allocation: 0.60      # Max 60% allokering i bear market
+  bear_market_allocation: 0.85      # Max 85% allokering i bear market (increased from 60%)
 
   # Heavy-tail risk controls
   max_tail_risk_allocation: 0.30    # Max 30% i högrisk-positioner (tail_risk > 0.7)

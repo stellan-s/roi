@@ -222,7 +222,26 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
     executed_trades = portfolio_tracker.execute_trades(final_decisions, latest_prices)
     portfolio_summary = portfolio_tracker.get_portfolio_summary()
 
-    _log_data_quality_issues(universe, prices, final_decisions)
+    # Enhanced data quality checks
+    try:
+        from quant.utils.data_quality import validate_system_health
+        is_healthy, health_report = validate_system_health(
+            prices_df=prices,
+            recommendations_df=final_decisions,
+            executed_trades=executed_trades,
+            portfolio_state=portfolio_summary,
+            config=config
+        )
+
+        print("\n" + health_report)
+
+        if not is_healthy:
+            print("\n🚨 SYSTEM HEALTH WARNING: Critical data quality issues detected!")
+
+    except ImportError:
+        print("⚠️ Data quality checker not available, using legacy checks")
+        _log_data_quality_issues(universe, prices, final_decisions)
+
     _log_recommendations(final_decisions, executed_trades, config['data']['cache_dir'])
 
     return final_decisions, portfolio_summary

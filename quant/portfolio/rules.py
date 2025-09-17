@@ -27,6 +27,13 @@ class PortfolioPosition:
     regime: str                      # Marknadsregim
     decision_confidence: float       # Beslutssäkerhet
 
+    # Additional attributes for risk management
+    uncertainty: float = 0.0         # Signal uncertainty
+    tail_risk_score: float = 0.0     # Tail risk score
+    trend_weight: float = 0.0        # Trend signal weight
+    momentum_weight: float = 0.0     # Momentum signal weight
+    sentiment_weight: float = 0.0    # Sentiment signal weight
+
 class PortfolioManager:
     """
     Portfolio-level management med regime diversification och disciplinmotor
@@ -53,9 +60,9 @@ class PortfolioManager:
                 max_single_regime_exposure=policy.get('max_single_regime_exposure', 0.85),
                 min_regime_diversification=policy.get('regime_diversification', True),
                 pre_earnings_freeze_days=policy.get('pre_earnings_freeze_days', 5),
-                trade_cost_bps=policy.get('trade_cost_bps', 15),
+                trade_cost_bps=policy.get('trade_cost_bps', 3),  # Use lower default from config
                 min_portfolio_positions=policy.get('min_portfolio_positions', 3),
-                bear_market_allocation=policy.get('bear_market_allocation', 0.60)
+                bear_market_allocation=policy.get('bear_market_allocation', 0.85)  # Use updated default
             )
         else:
             self.constraints = PortfolioConstraints()
@@ -75,10 +82,46 @@ class PortfolioManager:
         if latest_decisions.empty:
             return decisions
 
-        # Skapa PortfolioPosition objects
+        # Deduplicate recommendations by ticker (take mean of numeric values, most common for decisions)
+        print(f"🔍 Before deduplication: {len(latest_decisions)} recommendations")
+        duplicate_count = latest_decisions['ticker'].value_counts()
+        if (duplicate_count > 1).any():
+            print(f"⚠️ Found duplicates: {dict(duplicate_count[duplicate_count > 1])}")
+
+        # Group by ticker and aggregate - preserve ALL critical columns
+        agg_dict = {
+            'date': 'first',
+            'close': 'last',  # Most recent price
+            'decision': lambda x: x.mode().iloc[0],  # Most common decision
+            'expected_return': 'mean',
+            'prob_positive': 'mean',
+            'decision_confidence': 'mean',
+            'uncertainty': 'mean',
+            'trend_weight': 'mean',
+            'momentum_weight': 'mean',
+            'sentiment_weight': 'mean',
+            'regime': lambda x: x.mode().iloc[0],  # Most common regime
+            'regime_confidence': 'mean',
+            'tail_risk': 'mean',
+            'extreme_move_prob': 'mean',
+            'monte_carlo_prob_gain_20': 'mean',
+            'monte_carlo_prob_loss_20': 'mean',
+            'portfolio_weight': 'mean',  # Will be recalculated anyway
+            'portfolio_adjusted': 'first'
+        }
+
+        # Only aggregate columns that exist in the DataFrame
+        available_cols = latest_decisions.columns
+        final_agg_dict = {k: v for k, v in agg_dict.items() if k in available_cols}
+
+        latest_decisions = latest_decisions.groupby('ticker').agg(final_agg_dict).reset_index()
+
+        print(f"✅ After deduplication: {len(latest_decisions)} unique recommendations")
+
+        # Skapa PortfolioPosition objects with all available attributes
         positions = []
         for _, row in latest_decisions.iterrows():
-            regime_value = row['market_regime'] if 'market_regime' in row else 'unknown'
+            regime_value = row['regime'] if 'regime' in row else 'unknown'
             pos = PortfolioPosition(
                 ticker=row['ticker'],
                 weight=0.0,  # Kommer beräknas
@@ -86,7 +129,12 @@ class PortfolioManager:
                 expected_return=row['expected_return'],
                 prob_positive=row['prob_positive'],
                 regime=regime_value,
-                decision_confidence=row['decision_confidence']
+                decision_confidence=row['decision_confidence'],
+                uncertainty=row.get('uncertainty', 0.0),
+                tail_risk_score=row.get('tail_risk_score', row.get('tail_risk', 0.0)),
+                trend_weight=row.get('trend_weight', 0.0),
+                momentum_weight=row.get('momentum_weight', 0.0),
+                sentiment_weight=row.get('sentiment_weight', 0.0)
             )
             positions.append(pos)
 
@@ -129,7 +177,9 @@ class PortfolioManager:
 
             # KRITISK FIX: Ignorera "unknown" regime för diversification rules
             if single_regime == 'unknown':
-                print(f"ℹ️ Skipping regime diversification för unknown regime ({len(active_positions)} positioner)")
+                # Bara visa meddelande för extremt många positioner (möjligt problem)
+                if len(active_positions) > 100:
+                    print(f"ℹ️ Skipping regime diversification för unknown regime ({len(active_positions)} positioner)")
                 return positions
 
             print(f"⚠️ Regime diversification varning: Alla {len(active_positions)} positioner i {single_regime} regim")
@@ -142,14 +192,20 @@ class PortfolioManager:
             )
 
             # Downgrade svagare positioner till Hold, men behåll minst min_positions
+            # Sort active positions by confidence to keep the strongest
+            active_positions_sorted = sorted(active_positions, key=lambda p: p.decision_confidence, reverse=True)
             downgrades = 0
-            for i, pos in enumerate(positions):
-                if (pos.decision in ['Buy', 'Sell'] and
-                    i >= max_positions and
-                    len(active_positions) - downgrades > self.constraints.min_portfolio_positions):
-                    pos.decision = 'Hold'
-                    downgrades += 1
-                    print(f"  Downgraded {pos.ticker} till Hold (regime diversification)")
+
+            for pos in positions:
+                if pos.decision in ['Buy', 'Sell']:
+                    # Find position rank in sorted list
+                    pos_rank = next((i for i, ap in enumerate(active_positions_sorted) if ap.ticker == pos.ticker), len(active_positions_sorted))
+
+                    # Keep top positions within max_positions limit
+                    if pos_rank >= max_positions:
+                        pos.decision = 'Hold'
+                        downgrades += 1
+                        print(f"  Downgraded {pos.ticker} till Hold (regime diversification)")
 
         return positions
 
@@ -170,11 +226,21 @@ class PortfolioManager:
 
         # Kelly-inspirerad position sizing med regime och tail risk adjustment
         total_weight_budget = 1.0
+        min_position_size = 0.02  # Minimum 2% per position (meaningful size)
+        max_positions = int(total_weight_budget / min_position_size)  # Max 50 positions at 2% each
 
-        # Justera budget baserat på regim
-        if active_buys and active_buys[0].regime == 'bear':
-            total_weight_budget = self.constraints.bear_market_allocation
-            print(f"🐻 Bear market: Reducerar allokering till {total_weight_budget*100}%")
+        # Justera budget baserat på regim - check regime consensus, not just first ticker
+        if active_buys:
+            # Count regime distribution among active buy positions
+            regimes = [pos.regime for pos in active_buys]
+            bear_count = sum(1 for r in regimes if r == 'bear')
+            bear_ratio = bear_count / len(regimes)
+
+            # Apply bear market allocation if majority of positions are in bear regime
+            if bear_ratio > 0.5:  # More than 50% bear regime positions
+                total_weight_budget = self.constraints.bear_market_allocation
+                print(f"🐻 Bear market: Reducerar allokering till {total_weight_budget*100}% ({bear_count}/{len(regimes)} bear positions)")
+                max_positions = int(total_weight_budget / min_position_size)  # Fewer positions in bear market
 
         # Risk-adjusted expected returns med tail risk penalty
         risk_adjusted_returns = []
@@ -194,19 +260,42 @@ class PortfolioManager:
         # Proportional allocation baserat på risk-adjusted returns
         total_risk_adj_return = sum(risk_adjusted_returns)
 
+        # Sort positions by risk-adjusted return (best first)
+        sorted_indices = sorted(range(len(active_buys)), key=lambda i: risk_adjusted_returns[i], reverse=True)
+
+        # Take only the top positions that meet minimum size requirements
+        top_positions = min(len(active_buys), max_positions)
+
         for i, pos in enumerate(active_buys):
-            if total_risk_adj_return > 0:
-                base_weight = (risk_adjusted_returns[i] / total_risk_adj_return) * total_weight_budget
-                # Constrain till max weight
-                pos.weight = min(base_weight, self.constraints.max_weight_per_stock)
+            pos_rank = sorted_indices.index(i)
+
+            if pos_rank < top_positions and total_risk_adj_return > 0:
+                # Calculate proportional weight among top positions only
+                top_risk_adj_returns = [risk_adjusted_returns[j] for j in sorted_indices[:top_positions]]
+                top_total = sum(top_risk_adj_returns)
+
+                if top_total > 0:
+                    base_weight = (risk_adjusted_returns[i] / top_total) * total_weight_budget
+                    # Ensure minimum position size
+                    pos.weight = max(min_position_size, min(base_weight, self.constraints.max_weight_per_stock))
+                else:
+                    pos.weight = 0.0
             else:
                 pos.weight = 0.0
 
-        # Normalisera om total weight överstiger 1.0
-        total_weight = sum(pos.weight for pos in active_buys)
-        if total_weight > 1.0:
+        # Remove positions below minimum threshold
+        for pos in active_buys:
+            if pos.weight < min_position_size:
+                pos.weight = 0.0
+
+        # Normalisera om total weight överstiger budget
+        total_weight = sum(pos.weight for pos in active_buys if pos.weight > 0)
+        if total_weight > total_weight_budget:
             for pos in active_buys:
-                pos.weight = pos.weight / total_weight
+                if pos.weight > 0:
+                    pos.weight = (pos.weight / total_weight) * total_weight_budget
+
+        print(f"📊 Portfolio allocation: {sum(pos.weight for pos in active_buys if pos.weight > 0):.1%} across {len([p for p in active_buys if p.weight > 0])} positions")
 
         return positions
 
@@ -264,12 +353,15 @@ class PortfolioManager:
 
         active_positions = latest[latest['portfolio_weight'] > 0]
 
+        regime_col = 'market_regime' if 'market_regime' in active_positions.columns else 'regime'
+        regime_distribution = active_positions[regime_col].value_counts().to_dict()
+
         summary = {
             'total_positions': len(active_positions),
             'total_weight': active_positions['portfolio_weight'].sum(),
             'avg_expected_return': active_positions['expected_return'].mean() if len(active_positions) > 0 else 0,
             'avg_confidence': active_positions['decision_confidence'].mean() if len(active_positions) > 0 else 0,
-            'regime_distribution': active_positions['market_regime'].value_counts().to_dict(),
+            'regime_distribution': regime_distribution,
             'largest_position': active_positions['portfolio_weight'].max() if len(active_positions) > 0 else 0,
             'decision_distribution': latest['decision'].value_counts().to_dict()
         }

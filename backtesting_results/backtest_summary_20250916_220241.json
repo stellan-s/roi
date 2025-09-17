@@ -1,0 +1,26 @@
+{
+  "backtest_date": "20250916_220241",
+  "period": {
+    "start": "2025-03-16",
+    "end": "2025-09-16"
+  },
+  "adaptive_results": {
+    "total_return": 0.0853970927091603,
+    "annualized_return": 0.2786920407131652,
+    "sharpe_ratio": 0.6447086417955796,
+    "max_drawdown": -0.08525965285497826,
+    "win_rate": 0.23809523809523808
+  },
+  "static_results": {
+    "total_return": 0.08511978731055048,
+    "annualized_return": 0.2777122215577015,
+    "sharpe_ratio": 0.642690369726562,
+    "max_drawdown": -0.08525965285497826,
+    "win_rate": 0.23809523809523808
+  },
+  "improvements": {
+    "return_improvement": 0.0002773053986098173,
+    "sharpe_improvement": 0.0020182720690176126,
+    "drawdown_improvement": 0.0
+  }
+}

@@ -209,8 +209,9 @@ def main():
     print(f"Loaded configuration for {len(config['universe']['tickers'])} tickers")
 
     # Define backtest period (last 6 months for quick test)
-    end_date = "2025-09-16"
-    start_date = "2025-03-16"  # 6 months
+    today = datetime.now().date()
+    end_date = (today - timedelta(days=1)).isoformat()  # Yesterday to avoid incomplete data
+    start_date = (today - timedelta(days=180)).isoformat()  # 6 months back
 
     print(f"Backtesting period: {start_date} to {end_date}")
 

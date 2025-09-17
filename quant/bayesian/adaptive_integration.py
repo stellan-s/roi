@@ -105,10 +105,24 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                                prices: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Enhanced Bayesian scoring with adaptive parameters.
-        This is an alias for bayesian_score but uses adaptive normalization and regime adjustments.
+        Uses learned parameters instead of hardcoded config values.
         """
-        # Use the standard bayesian_score which already includes adaptive features
-        return self.bayesian_score(tech, senti, prices)
+        if not self.is_calibrated or not self.estimated_params:
+            print("⚠️ Adaptive engine not calibrated, falling back to static parameters")
+            return self.bayesian_score(tech, senti, prices)
+
+        # Apply adaptive signal normalization
+        adapted_tech = self._apply_adaptive_technical_scaling(tech)
+        adapted_senti = self._apply_adaptive_sentiment_scaling(senti)
+
+        # Get base recommendations using adapted signals
+        recommendations = self.bayesian_score(adapted_tech, adapted_senti, prices)
+
+        # Apply adaptive regime adjustments
+        final_recommendations = self._apply_adaptive_regime_adjustments(recommendations, prices)
+
+        print(f"✅ Applied adaptive parameters to {len(final_recommendations)} recommendations")
+        return final_recommendations
 
     def get_parameter_diagnostics(self) -> pd.DataFrame:
         """Get parameter estimation diagnostics."""
@@ -165,6 +179,75 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
             df = df.sort_values('abs_change_percent', ascending=False)
 
         return df
+
+    def _apply_adaptive_technical_scaling(self, tech: pd.DataFrame) -> pd.DataFrame:
+        """Apply learned technical signal scaling."""
+        adapted = tech.copy()
+
+        if self.estimated_params and hasattr(self.estimated_params, 'momentum_scale_factor'):
+            momentum_scale = self.estimated_params.momentum_scale_factor.value
+            if 'mom_rank' in adapted.columns:
+                # Adaptive momentum scaling: (rank - 0.5) * learned_scale
+                adapted['mom_rank'] = (adapted['mom_rank'] - 0.5) * momentum_scale
+                print(f"📊 Applied adaptive momentum scaling: {momentum_scale:.3f}")
+
+        return adapted
+
+    def _apply_adaptive_sentiment_scaling(self, senti: pd.DataFrame) -> pd.DataFrame:
+        """Apply learned sentiment signal scaling."""
+        adapted = senti.copy()
+
+        if self.estimated_params and hasattr(self.estimated_params, 'sentiment_scale_factor'):
+            sentiment_scale = self.estimated_params.sentiment_scale_factor.value
+            if 'sent_score' in adapted.columns:
+                # Adaptive sentiment scaling: score / learned_scale
+                adapted['sent_score'] = np.clip(adapted['sent_score'] / sentiment_scale, -1.0, 1.0)
+                print(f"📊 Applied adaptive sentiment scaling: {sentiment_scale:.3f}")
+
+        return adapted
+
+    def _apply_adaptive_regime_adjustments(self, recommendations: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
+        """Apply learned regime-specific adjustments."""
+        if not self.estimated_params or recommendations.empty:
+            return recommendations
+
+        adapted = recommendations.copy()
+
+        # Detect current regime for each stock
+        from ..regime.detector import RegimeDetector
+        regime_detector = RegimeDetector(self.config)
+
+        for _, row in recommendations.iterrows():
+            ticker = row['ticker']
+
+            # Get ticker's recent price data
+            ticker_prices = prices[prices['ticker'] == ticker].tail(60)  # Last 60 days
+            if len(ticker_prices) < 10:
+                continue
+
+            # Detect regime
+            current_regime = regime_detector.detect_current_regime(ticker_prices)
+
+            # Apply regime-specific adjustments
+            regime_name = current_regime.regime.value.lower()
+            if regime_name in self.estimated_params.regime_adjustments:
+                regime_adj = self.estimated_params.regime_adjustments[regime_name]
+
+                # Adjust signal strengths based on learned regime effectiveness
+                if 'trend' in regime_adj:
+                    trend_adj = regime_adj['trend'].value
+                    if 'trend_weight' in adapted.columns:
+                        mask = adapted['ticker'] == ticker
+                        adapted.loc[mask, 'trend_weight'] *= trend_adj
+
+                if 'momentum' in regime_adj:
+                    momentum_adj = regime_adj['momentum'].value
+                    if 'momentum_weight' in adapted.columns:
+                        mask = adapted['ticker'] == ticker
+                        adapted.loc[mask, 'momentum_weight'] *= momentum_adj
+
+        print(f"🎯 Applied adaptive regime adjustments")
+        return adapted
 
     def get_learning_summary(self) -> Dict:
         """Get summary of parameter learning results."""

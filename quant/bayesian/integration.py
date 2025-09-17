@@ -46,23 +46,10 @@ class BayesianPolicyEngine:
         Output: E[r], Pr(↑), decisions med uncertainty och regime-justering
         """
 
-        # Regime detection först (om prices tillgängliga)
-        regime_adjustment = 1.0
-        if prices is not None:
-            try:
-                self.current_regime, self.regime_probabilities, self.regime_diagnostics = \
-                    self.regime_detector.detect_regime(prices)
-
-                # Hämta regime-baserade adjustments
-                regime_adjustments = self.regime_detector.get_regime_adjustments(self.current_regime)
-                # Använd genomsnittlig adjustment som övergripande faktor
-                regime_adjustment = np.mean(list(regime_adjustments.values()))
-
-            except Exception as e:
-                print(f"⚠️ Regime detection misslyckades: {e}")
-                self.current_regime = MarketRegime.NEUTRAL
-                self.regime_probabilities = {regime: 1/3 for regime in MarketRegime}
-                self.regime_diagnostics = {"error": str(e)}
+        # Initialize default values for when regime detection is not available
+        self.current_regime = None
+        self.regime_probabilities = None
+        self.regime_diagnostics = None
 
         # Merge som tidigare
         t = tech.copy()
@@ -78,18 +65,38 @@ class BayesianPolicyEngine:
             # Normalisera signals till standardiserade ranges
             signals = self._normalize_signals(row)
 
-            # Regime-specifika signal adjustments
-            if self.current_regime:
-                regime_adjustments = self.regime_detector.get_regime_adjustments(self.current_regime)
-                # Applicera regime-specifika multipliers
-                adjusted_signals = {}
-                for signal_type, value in signals.items():
-                    signal_name = signal_type.value
-                    multiplier = regime_adjustments.get(signal_name, 1.0)
-                    adjusted_signals[signal_type] = value * multiplier
-                signals = adjusted_signals
+            # Per-stock regime detection
+            stock_regime = None
+            stock_regime_confidence = 0.33
+            regime_adjustment = 1.0
 
-            # Bayesian combination med regime adjustment
+            if prices is not None:
+                try:
+                    # Get price data for this specific stock
+                    ticker_prices = prices[prices['ticker'] == row['ticker']].tail(60)  # Last 60 days
+                    if len(ticker_prices) >= 10:  # Need minimum data
+                        stock_regime_result = self.regime_detector.detect_current_regime(ticker_prices)
+                        stock_regime = stock_regime_result.regime
+                        stock_regime_confidence = stock_regime_result.confidence
+
+                        # Get regime-specific adjustments for this stock
+                        regime_adjustments = self.regime_detector.get_regime_adjustments(stock_regime)
+                        regime_adjustment = np.mean(list(regime_adjustments.values()))
+
+                        # Apply regime-specific signal adjustments
+                        adjusted_signals = {}
+                        for signal_type, value in signals.items():
+                            signal_name = signal_type.value
+                            multiplier = regime_adjustments.get(signal_name, 1.0)
+                            adjusted_signals[signal_type] = value * multiplier
+                        signals = adjusted_signals
+                except Exception as e:
+                    # Fallback to neutral if detection fails for this stock
+                    from ..regime.detector import MarketRegime
+                    stock_regime = MarketRegime.NEUTRAL
+                    stock_regime_confidence = 0.33
+
+            # Bayesian combination with stock-specific regime adjustment
             output = self.engine.combine_signals(signals, regime_adjustment)
 
             # Konvertera till decisions
@@ -112,9 +119,9 @@ class BayesianPolicyEngine:
                 'sentiment_weight': output.signal_weights.get(SignalType.SENTIMENT, 0),
                 'decision': decision,
                 'decision_confidence': self._decision_confidence(output),
-                # Regime information
-                'market_regime': self.current_regime.value if self.current_regime else 'unknown',
-                'regime_confidence': self.regime_probabilities[self.current_regime] if self.current_regime and self.regime_probabilities else 0.33,
+                # Per-stock regime information
+                'market_regime': stock_regime.value if stock_regime else 'unknown',
+                'regime_confidence': stock_regime_confidence,
                 # Heavy-tail risk metrics (will be calculated if price data available)
                 'tail_risk_score': self._calculate_tail_risk_score(row, signals),
                 'monte_carlo_prob_gain_20': 0.0,  # Will be calculated in risk analytics
@@ -153,8 +160,8 @@ class BayesianPolicyEngine:
         min_expected_return = self.min_expected_return
         max_uncertainty = self.max_uncertainty
 
-        # Adjustera thresholds baserat på uncertainty
-        uncertainty_penalty = output.uncertainty * 0.2  # Higher uncertainty = higher thresholds
+        # Adjustera thresholds baserat på uncertainty (reduced penalty)
+        uncertainty_penalty = output.uncertainty * 0.1  # Smaller penalty for uncertainty
         buy_threshold = high_confidence_threshold + uncertainty_penalty
         sell_threshold = low_confidence_threshold - uncertainty_penalty
 
@@ -164,9 +171,10 @@ class BayesianPolicyEngine:
             output.uncertainty <= max_uncertainty):
             return "Buy"
 
-        # Sell conditions: Low probability OR negative expected return with confidence
-        elif (output.prob_positive <= sell_threshold or
-              (output.expected_return <= -min_expected_return and output.uncertainty <= max_uncertainty)):
+        # Sell conditions: Low probability AND negative expected return with confidence
+        elif (output.prob_positive <= sell_threshold and
+              output.expected_return <= -min_expected_return and
+              output.uncertainty <= max_uncertainty):
             return "Sell"
 
         else:
