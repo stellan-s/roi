@@ -123,6 +123,24 @@ def get_regime_info() -> dict:
 
     # Fallback to engine if file-based approach fails
     engine = get_bayesian_engine()
+
+    # If it's an adaptive engine, get detailed explanation
+    if hasattr(engine, 'get_regime_explanation'):
+        detailed_explanation = engine.get_regime_explanation()
+        current_regime = getattr(engine, 'current_regime', None)
+        regime_probabilities = getattr(engine, 'regime_probabilities', {})
+
+        if current_regime and regime_probabilities:
+            regime_name = current_regime.value if hasattr(current_regime, 'value') else str(current_regime)
+            confidence = regime_probabilities.get(current_regime, 0.33)
+
+            return {
+                "regime": regime_name.title(),
+                "confidence": confidence,
+                "explanation": detailed_explanation
+            }
+
+    # Final fallback to basic engine
     return engine.get_regime_info()
 
 def get_regime_history() -> pd.DataFrame:

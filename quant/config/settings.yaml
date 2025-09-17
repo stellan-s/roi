@@ -109,6 +109,26 @@ policy:
   tail_risk_position_penalty: 0.30  # Max 30% reduction för high tail risk
   min_tail_risk_adjusted_weight: 0.5 # Minimum 50% av ursprunglig vikt efter tail penalty
 
+# Risk Budgeting Portfolio Optimization
+risk_budgeting:
+  enabled: true
+
+  # Position sizing constraints
+  max_position_weight: 0.15          # Max 15% per stock (vs old 10%)
+  max_factor_concentration: 0.35     # Max 35% per factor category
+  min_positions: 5                   # Minimum diversification
+  max_positions: 20                  # Focus constraint (vs unlimited)
+
+  # Risk adjustment parameters
+  tail_risk_penalty_factor: 0.5      # Penalty multiplier for high tail risk
+  uncertainty_penalty_factor: 2.0    # Penalty multiplier for high uncertainty
+
+  # Regime-specific allocation constraints
+  regime_allocation_multipliers:
+    bull: 1.0                        # 100% allocation in bull markets
+    bear: 0.7                        # 70% allocation in bear markets (more conservative)
+    neutral: 0.85                    # 85% allocation in neutral markets
+
 # Statistisk Tail Risk Analys (NY: ersätter heuristisk tail risk)
 tail_risk:
   enabled: true

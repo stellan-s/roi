@@ -140,6 +140,17 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
                 current_vix
             )
 
+        # Show regime explanation on first day or every 10 days for debugging
+        if i == 0 or i % 10 == 0:
+            if hasattr(engine, 'get_regime_explanation'):
+                regime_explanation = engine.get_regime_explanation()
+                print(f"\n📊 Regime Analysis for {current_date.date()}:")
+                # Show just the first few lines of explanation
+                explanation_lines = regime_explanation.split('\n')[:6]
+                for line in explanation_lines:
+                    if line.strip():
+                        print(f"    {line}")
+
         if len(recommendations) == 0:
             continue
 

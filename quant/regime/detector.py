@@ -455,7 +455,8 @@ class RegimeDetector:
     def get_regime_explanation(self,
                              regime: MarketRegime,
                              probabilities: Dict[MarketRegime, float],
-                             diagnostics: Dict) -> str:
+                             diagnostics: Dict,
+                             vix_data: Optional[pd.DataFrame] = None) -> str:
         """
         Generera förklaring av regime-klassificering för användaren
         """
@@ -475,13 +476,55 @@ class RegimeDetector:
         explanation += f"- Drawdown från high: {features['drawdown']*100:.1f}%\n"
         explanation += f"- Positiva dagar (20d): {features['positive_days_pct']*100:.0f}%\n\n"
 
+        # VIX Analysis (if available)
+        if vix_data is not None and not vix_data.empty:
+            try:
+                latest_vix = vix_data.iloc[-1]
+                vix_regime = latest_vix['vix_regime']
+                vix_level = latest_vix['vix_close']
+
+                explanation += "**VIX Makroanalys:**\n"
+                explanation += f"- VIX Nivå: {vix_level:.1f} ({vix_regime.replace('_', ' ').title()})\n"
+
+                # VIX regime interpretation
+                vix_interp = {
+                    'low_fear': 'Låg rädsla - Investerare är självförtroende',
+                    'moderate_fear': 'Måttlig oro - Försiktig optimism',
+                    'high_fear': 'Hög oro - Investerare är nervösa',
+                    'extreme_fear': 'Extrem rädsla - Panik i marknaden'
+                }
+                explanation += f"- Tolkning: {vix_interp.get(vix_regime, 'Okänd VIX regim')}\n"
+
+                # VIX momentum if available
+                if 'vix_momentum_5d' in latest_vix:
+                    vix_momentum = latest_vix['vix_momentum_5d']
+                    momentum_dir = "ökar" if vix_momentum > 0.05 else "minskar" if vix_momentum < -0.05 else "stabil"
+                    explanation += f"- VIX Trend (5d): {vix_momentum*100:+.1f}% ({momentum_dir})\n"
+
+                # VIX influence on regime decision
+                if self.vix_config.get('enabled', False):
+                    influence = self.vix_config.get('influence_weight', 0.4)
+                    explanation += f"- VIX Påverkan: {influence:.0%} av regimbeslut\n"
+
+                explanation += "\n"
+
+            except Exception as e:
+                explanation += "**VIX Analys:** Ej tillgänglig\n\n"
+
+        # Regime probability breakdown
+        explanation += "**Regim Sannolikheter:**\n"
+        for reg, prob in probabilities.items():
+            explanation += f"- {reg.value.title()}: {prob*100:.0f}%\n"
+        explanation += "\n"
+
         # Signal implications
         explanation += "**Signal-justeringar:**\n"
         for signal, multiplier in regime_def.signal_adjustments.items():
             direction = "förstärks" if multiplier > 1.0 else "dämpas" if multiplier < 1.0 else "oförändrad"
             explanation += f"- {signal.title()}: {multiplier:.1f}x ({direction})\n"
 
-        explanation += f"\n*{regime_def.momentum_behavior}*\n"
-        explanation += f"*{regime_def.sentiment_bias}*"
+        explanation += f"\n**Regime Karakteristik:**\n"
+        explanation += f"- *{regime_def.momentum_behavior}*\n"
+        explanation += f"- *{regime_def.sentiment_bias}*"
 
         return explanation

@@ -313,18 +313,28 @@ def main():
     report_path = save_daily_markdown(
         recommendations,
         output_dir,
-        portfolio_summary
+        portfolio_summary,
+        engine
     )
 
     print(f"\nReport generated: {report_path}")
     print(f"Generated {len(recommendations)} recommendations")
+
+    # Show risk budgeting summary
+    print("\n=== Risk Budgeting Optimization ===")
+    risk_budgeting_summary = engine.get_risk_budgeting_summary(recommendations)
+    # Show first few lines of the summary
+    for line in risk_budgeting_summary.split('\n')[:8]:
+        if line.strip():
+            print(line)
 
     # Show top recommendations
     buy_recs = recommendations[recommendations['decision'] == 'Buy'].nlargest(3, 'decision_confidence')
     if not buy_recs.empty:
         print(f"\nTop buy recommendations:")
         for _, rec in buy_recs.iterrows():
-            print(f"  {rec['ticker']}: {rec['prob_positive']:.1%} prob, {rec['decision_confidence']:.2f} confidence")
+            weight = rec.get('portfolio_weight', 0)
+            print(f"  {rec['ticker']}: {rec['prob_positive']:.1%} prob, {rec['decision_confidence']:.2f} confidence, {weight:.1%} weight")
 
 if __name__ == "__main__":
     main()

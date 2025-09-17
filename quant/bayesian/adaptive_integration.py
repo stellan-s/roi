@@ -14,6 +14,7 @@ from ..regime.detector import RegimeDetector, MarketRegime
 from ..risk.analytics import RiskAnalytics, PortfolioRiskProfile
 from ..adaptive.parameter_estimator import ParameterEstimator, ParameterEstimates
 from ..factors.profile_engine import StockFactorProfileEngine
+from ..portfolio.risk_budgeting import RiskBudgetingEngine
 
 class AdaptiveBayesianEngine(BayesianPolicyEngine):
     """
@@ -26,6 +27,9 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
         # Initialize factor profile engine
         self.factor_engine = StockFactorProfileEngine(config or {})
+
+        # Initialize risk budgeting engine
+        self.risk_budgeting_engine = RiskBudgetingEngine(config or {}, self.factor_engine)
 
         # Initialize tail risk calculator if available
         try:
@@ -305,6 +309,21 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         """Get explanation of factor profile for a specific stock."""
         return self.factor_engine.explain_stock_factors(ticker)
 
+    def get_regime_explanation(self) -> str:
+        """Get detailed explanation of current market regime classification."""
+        return getattr(self, 'regime_explanation', 'Ingen regimförklaring tillgänglig.')
+
+    def get_risk_budgeting_summary(self, recommendations: pd.DataFrame = None) -> str:
+        """Get summary of risk budgeting optimization."""
+        diagnostics = getattr(self, 'risk_budgeting_diagnostics', {})
+        if not diagnostics:
+            return "Risk budgeting diagnostics not available"
+
+        if recommendations is not None and not recommendations.empty:
+            return self.risk_budgeting_engine.get_optimization_summary(recommendations, diagnostics)
+        else:
+            return f"Risk budgeting applied: {diagnostics.get('output_count', 0)} positions, {diagnostics.get('total_allocation', 0):.1%} allocated"
+
     def _normalize_signals_adaptive(self, row: pd.Series) -> Dict[SignalType, float]:
         """
         Adaptive signal normalization using estimated parameters instead of hardcoded values.
@@ -387,14 +406,22 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
             print("Warning: Engine not calibrated. Using default parameters.")
             return self.bayesian_score(tech, senti, prices, vix_data)
 
-        # Regime detection
+        # Regime detection with VIX data
         regime_adjustment = 1.0
         if prices is not None:
-            regime_info = self.regime_detector.detect_regime(prices)
+            regime_info = self.regime_detector.detect_regime(prices, vix_data)
             # detect_regime returns (regime, probabilities, diagnostics)
             self.current_regime = regime_info[0]
             self.regime_probabilities = regime_info[1]
             self.regime_diagnostics = regime_info[2]
+
+            # Generate regime explanation
+            self.regime_explanation = self.regime_detector.get_regime_explanation(
+                self.current_regime,
+                self.regime_probabilities,
+                self.regime_diagnostics,
+                vix_data
+            )
 
             if self.current_regime:
                 regime_adjustments = self._get_adaptive_regime_adjustments(self.current_regime)
@@ -404,6 +431,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
             # Equal regime probabilities if no price data
             self.regime_probabilities = {regime: 1/3 for regime in MarketRegime}
             regime_adjustments = {"momentum": 1.0, "trend": 1.0, "sentiment": 1.0}
+            self.regime_explanation = "**Ingen Regim Detekterad**\nIngen prisdata tillgänglig för regimanalys."
 
         # Merge technical and sentiment data
         merged = pd.merge(tech, senti, on='ticker', how='left')
@@ -499,6 +527,13 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
             # Apply dynamic filtering to focus on best opportunities
             results_df = self.factor_engine.filter_investable_universe(results_df)
+
+            # Apply risk budgeting optimization for position sizing
+            if not results_df.empty:
+                optimized_results, self.risk_budgeting_diagnostics = self.risk_budgeting_engine.optimize_portfolio(
+                    results_df, current_regime_str
+                )
+                results_df = optimized_results
 
         return results_df
 
