@@ -127,6 +127,8 @@ regime_probabilities = {
 
 ### Regime-Specific Multipliers
 
+**IMPORTANT**: The regime detection system now provides per-stock regime classification instead of global regime assignment. This fixes the "fake consensus" issue where all stocks were assigned the same regime, creating artificial 100% consensus reports.
+
 ### Signal Adjustments: From Hardcoded to Learned
 
 #### Traditional Approach (Static)
@@ -151,7 +153,7 @@ def get_regime_adjustments(self, regime: MarketRegime) -> Dict[str, float]:
 
 #### Adaptive Approach (Learned) - NEW
 
-The system now learns regime adjustments from historical data:
+The system now learns regime adjustments from historical data and applies them per-stock:
 
 ```python
 def estimate_regime_adjustments(self, historical_data) -> Dict[str, Dict[str, float]]:
@@ -183,6 +185,14 @@ def estimate_regime_adjustments(self, historical_data) -> Dict[str, Dict[str, fl
                 estimation_method="regime_conditional_correlation",
                 n_observations=len(regime_periods)
             )
+
+# Per-stock regime detection ensures honest distribution reporting
+def detect_per_stock_regime(self, ticker_prices: pd.DataFrame) -> RegimeResult:
+    """Detect regime for individual stock instead of global assignment"""
+    if len(ticker_prices) >= 10:  # Minimum data requirement
+        return self.regime_detector.detect_current_regime(ticker_prices)
+    else:
+        return RegimeResult(regime=MarketRegime.NEUTRAL, confidence=0.33)
 ```
 
 #### Example Learning Results

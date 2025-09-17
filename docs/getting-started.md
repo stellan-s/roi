@@ -3,7 +3,7 @@
 ## Installation
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.12 or higher
 - Virtual environment (recommended)
 
 ### Setup
@@ -17,7 +17,7 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install pandas numpy yfinance pyyaml
+pip install pandas numpy yfinance pyyaml beautifulsoup4 feedparser duckdb
 ```
 
 ## Quick Start
@@ -85,9 +85,11 @@ The system generates a comprehensive daily report including:
 - **Extreme Moves**: P[|return| > 2σ] probability of large movements
 
 ### Decision Criteria
-- **Buy**: Pr(↑) ≥ 58% + E[r] ≥ 0.05% + low uncertainty
-- **Sell**: Pr(↑) ≤ 40% or E[r] ≤ -0.05% with low uncertainty
+- **Buy**: Pr(↑) ≥ 55% + E[r] ≥ 0.02% + uncertainty ≤ 0.50
+- **Sell**: Pr(↑) ≤ 45% AND E[r] ≤ -0.02% + uncertainty ≤ 0.50
 - **Hold**: All other cases or high uncertainty
+
+**Note**: Decision thresholds have been calibrated from recent system fixes to ensure logical consistency and avoid contradictory recommendations.
 
 ## Next Steps
 

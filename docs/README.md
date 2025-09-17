@@ -103,6 +103,7 @@ ROI Advanced Trading System
 - **[Risk Modeling](risk-modeling.md)** - Heavy-tail analysis and stress testing
 - **[Portfolio Management](portfolio-management.md)** - Position sizing and optimization
 - **[Backtesting Framework](backtesting.md)** - Historical performance analysis and attribution
+- **[Recent Fixes](recent-fixes.md)** - 🆕 Critical system fixes and improvements
 - **[API Reference](api-reference.md)** - Complete function and class documentation
 - **[Examples](examples.md)** - Usage examples and tutorials
 - **[Glossary](glossary.md)** - Terms, formulas, and abbreviations explained
@@ -112,6 +113,11 @@ ROI Advanced Trading System
 ### Prerequisites
 - Python 3.12+ with virtual environment
 - Dependencies: pandas, numpy, yfinance, yaml, beautifulsoup4, feedparser, duckdb
+- **SYSTEM STATUS**: All critical issues resolved as of September 2025
+  - ✅ Network timeout hangs fixed (thread-based timeouts)
+  - ✅ Contradictory trading logic fixed (proper AND logic for sells)
+  - ✅ Future date leaks in backtesting fixed (dynamic dates)
+  - ✅ Fake regime consensus fixed (per-stock regime detection)
 
 ```bash
 # Setup environment (if not already done)

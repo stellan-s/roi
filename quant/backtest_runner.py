@@ -99,16 +99,20 @@ def run_backtest_period(engine, config, start_date, end_date):
         if len(tech_current) == 0:
             continue
 
+        # Get unique latest data for each ticker for the current date
+        # This fixes the duplicate recommendation issue where tail() was creating 235 duplicates
+        latest_tech = tech_current.groupby('ticker').tail(1)
+
         # Generate recommendations using the engine
         if hasattr(engine, 'bayesian_score_adaptive'):
             recommendations = engine.bayesian_score_adaptive(
-                tech_current.tail(len(universe) * 5),  # Recent data only
+                latest_tech,  # Use deduplicated latest data per ticker
                 senti,
                 prices_period[prices_period['date'] <= current_date]
             )
         else:
             recommendations = engine.bayesian_score(
-                tech_current.tail(len(universe) * 5),
+                latest_tech,  # Use deduplicated latest data per ticker
                 senti,
                 prices_period[prices_period['date'] <= current_date]
             )

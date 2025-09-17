@@ -232,10 +232,10 @@ SENTIMENT:
 bayesian:
   time_horizon_days: 21
   decision_thresholds:
-    buy_probability: 0.58      # Pr(↑) threshold for buy
-    sell_probability: 0.40     # Pr(↑) threshold for sell
-    min_expected_return: 0.0005 # Minimum E[r] for buy
-    max_uncertainty: 0.35      # Maximum uncertainty for action
+    buy_probability: 0.55      # Pr(↑) threshold for buy
+    sell_probability: 0.45     # Pr(↑) threshold for sell
+    min_expected_return: 0.0002 # Minimum E[r] for buy
+    max_uncertainty: 0.50      # Maximum uncertainty for action
 
   priors:
     trend_effectiveness: 0.62   # SMA trend-following edge
@@ -261,7 +261,9 @@ A stock receives a "Buy" recommendation when:
 ### Sell Conditions
 A stock receives a "Sell" recommendation when:
 1. `Pr(↑) ≤ sell_probability - uncertainty_penalty`
-2. OR `E[r] ≤ -min_expected_return` with low uncertainty
+2. AND `E[r] ≤ -min_expected_return` with low uncertainty
+
+**IMPORTANT**: The sell logic has been fixed to require BOTH low probability AND negative expected return. Previously, the system incorrectly used OR logic, causing stocks with positive expected returns to be marked for selling.
 
 ### Hold Conditions
 All other cases, including high uncertainty situations.

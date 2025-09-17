@@ -43,10 +43,10 @@ bayesian:
   time_horizon_days: 21          # Investment horizon for E[r] and Pr(↑)
 
   decision_thresholds:
-    buy_probability: 0.58        # Buy when Pr(↑) ≥ 58%
-    sell_probability: 0.40       # Sell when Pr(↑) ≤ 40%
-    min_expected_return: 0.0005  # Minimum 0.05% daily E[r] for buy
-    max_uncertainty: 0.35        # Maximum uncertainty for action
+    buy_probability: 0.55        # Buy when Pr(↑) ≥ 55%
+    sell_probability: 0.45       # Sell when Pr(↑) ≤ 45%
+    min_expected_return: 0.0002  # Minimum 0.02% daily E[r] for buy
+    max_uncertainty: 0.50        # Maximum uncertainty for action
 
   # Prior beliefs for signals (adjustable based on backtesting)
   priors:
@@ -212,17 +212,19 @@ decision_thresholds:
   buy_probability: 0.65        # Higher confidence required
   sell_probability: 0.35       # More decisive selling
   min_expected_return: 0.001   # Higher return threshold
-  max_uncertainty: 0.25        # Lower uncertainty tolerance
+  max_uncertainty: 0.30        # Lower uncertainty tolerance
 ```
 
 #### Aggressive Settings (More Trading Activity)
 ```yaml
 decision_thresholds:
-  buy_probability: 0.55        # Lower confidence acceptable
-  sell_probability: 0.45       # Less decisive selling
-  min_expected_return: 0.0003  # Lower return threshold
-  max_uncertainty: 0.40        # Higher uncertainty tolerance
+  buy_probability: 0.52        # Lower confidence acceptable
+  sell_probability: 0.48       # Less decisive selling
+  min_expected_return: 0.0001  # Lower return threshold
+  max_uncertainty: 0.60        # Higher uncertainty tolerance
 ```
+
+**Note**: Current default thresholds (55%/45%/0.02%/50%) have been calibrated to fix contradictory trading logic where stocks with positive expected returns were incorrectly flagged for selling.
 
 ### Risk Management Profiles
 
