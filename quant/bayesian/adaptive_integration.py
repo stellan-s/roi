@@ -102,21 +102,22 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
     def bayesian_score_adaptive(self,
                                tech: pd.DataFrame,
                                senti: pd.DataFrame,
-                               prices: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                               prices: Optional[pd.DataFrame] = None,
+                               vix_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
-        Enhanced Bayesian scoring with adaptive parameters.
+        Enhanced Bayesian scoring with adaptive parameters and VIX integration.
         Uses learned parameters instead of hardcoded config values.
         """
         if not self.is_calibrated or not self.estimated_params:
             print("⚠️ Adaptive engine not calibrated, falling back to static parameters")
-            return self.bayesian_score(tech, senti, prices)
+            return self.bayesian_score(tech, senti, prices, vix_data)
 
         # Apply adaptive signal normalization
         adapted_tech = self._apply_adaptive_technical_scaling(tech)
         adapted_senti = self._apply_adaptive_sentiment_scaling(senti)
 
-        # Get base recommendations using adapted signals
-        recommendations = self.bayesian_score(adapted_tech, adapted_senti, prices)
+        # Get base recommendations using adapted signals and VIX
+        recommendations = self.bayesian_score(adapted_tech, adapted_senti, prices, vix_data)
 
         # Apply adaptive regime adjustments
         final_recommendations = self._apply_adaptive_regime_adjustments(recommendations, prices)
@@ -364,13 +365,14 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
     def bayesian_score_adaptive(self,
                                tech: pd.DataFrame,
                                senti: pd.DataFrame,
-                               prices: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                               prices: Optional[pd.DataFrame] = None,
+                               vix_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
-        Adaptive version of bayesian_score that uses learned parameters.
+        Adaptive version of bayesian_score that uses learned parameters and VIX.
         """
         if not self.is_calibrated:
             print("Warning: Engine not calibrated. Using default parameters.")
-            return self.bayesian_score(tech, senti, prices)
+            return self.bayesian_score(tech, senti, prices, vix_data)
 
         # Regime detection
         regime_adjustment = 1.0

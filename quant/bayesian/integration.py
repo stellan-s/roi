@@ -38,7 +38,8 @@ class BayesianPolicyEngine:
     def bayesian_score(self,
                       tech: pd.DataFrame,
                       senti: pd.DataFrame,
-                      prices: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                      prices: Optional[pd.DataFrame] = None,
+                      vix_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Ersättning för simple_score med Bayesian signal combination
 
@@ -75,7 +76,7 @@ class BayesianPolicyEngine:
                     # Get price data for this specific stock
                     ticker_prices = prices[prices['ticker'] == row['ticker']].tail(60)  # Last 60 days
                     if len(ticker_prices) >= 10:  # Need minimum data
-                        stock_regime_result = self.regime_detector.detect_current_regime(ticker_prices)
+                        stock_regime_result = self.regime_detector.detect_current_regime(ticker_prices, vix_data)
                         stock_regime = stock_regime_result.regime
                         stock_regime_confidence = stock_regime_result.confidence
 

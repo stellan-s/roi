@@ -60,6 +60,39 @@ regime_detection:
     return_bear: -0.003         # -0.3% daglig för bear (lowered from -0.002)
     drawdown_bear: -0.15        # -15% drawdown → bear (lowered from -0.10)
 
+  # VIX Integration for Global Market Context
+  vix_integration:
+    enabled: true               # Use VIX data in regime detection
+    influence_weight: 0.6       # Base VIX influence (0.0-1.0, default 0.4 was too weak)
+    override_threshold: 18.0    # VIX level below which to override local bear signals
+    override_strength: 0.8      # How much to boost bull/reduce bear when overriding (0.0-1.0)
+
+    # VIX regime score multipliers (how much each VIX regime affects market regime scores)
+    regime_multipliers:
+      low_fear:                 # VIX < 20
+        bull_boost: 0.6         # Boost bull market probability
+        bear_penalty: -0.3      # Reduce bear market probability
+        neutral_boost: 0.1      # Slight neutral boost
+      moderate_fear:            # VIX 20-30
+        bull_boost: 0.1         # Small bull boost
+        bear_penalty: 0.0       # No bear penalty
+        neutral_boost: 0.4      # Strong neutral boost
+      high_fear:                # VIX 30-40
+        bull_boost: -0.2        # Reduce bull probability
+        bear_penalty: 0.0       # No bear reduction (let local signals dominate)
+        neutral_boost: 0.2      # Moderate neutral boost
+      extreme_fear:             # VIX > 40
+        bull_boost: -0.4        # Strong bull reduction
+        bear_penalty: 0.0       # No bear reduction
+        neutral_boost: 0.1      # Small neutral boost
+
+    # VIX momentum adjustments (additional scoring based on VIX direction)
+    momentum_adjustments:
+      spike_threshold: 0.2      # 20% VIX increase = fear spike
+      drop_threshold: -0.2      # 20% VIX decrease = fear relief
+      spike_bear_boost: 0.2     # Extra bear score when VIX spikes
+      drop_bull_boost: 0.2      # Extra bull score when VIX drops
+
 policy:
   max_weight: 0.10             # Max position size per aktie
   pre_earnings_freeze_days: 5  # Disciplinmotor: ingen handel före earnings

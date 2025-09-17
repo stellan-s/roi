@@ -98,6 +98,9 @@ class RegimeDetector:
             self.return_bull_threshold = thresholds.get('return_bull', 0.002)
             self.return_bear_threshold = thresholds.get('return_bear', -0.002)
             self.drawdown_bear_threshold = thresholds.get('drawdown_bear', -0.10)
+
+            # VIX integration configuration
+            self.vix_config = regime_config.get('vix_integration', {})
         else:
             # Fallback till default värden
             self.lookback_days = lookback_days
@@ -109,6 +112,9 @@ class RegimeDetector:
             self.return_bull_threshold = 0.002
             self.return_bear_threshold = -0.002
             self.drawdown_bear_threshold = -0.10
+
+            # Default VIX configuration
+            self.vix_config = {}
 
         # HMM-liknande transition probabilities (simplified)
         # Regimer tenderar att persista - ändras inte för ofta
@@ -196,9 +202,9 @@ class RegimeDetector:
 
         return features
 
-    def classify_regime_heuristic(self, features: pd.Series) -> Dict[MarketRegime, float]:
+    def classify_regime_heuristic(self, features: pd.Series, vix_data: Optional[pd.DataFrame] = None) -> Dict[MarketRegime, float]:
         """
-        Heuristisk regime-klassificering baserat på market features
+        Heuristisk regime-klassificering baserat på market features + VIX
         Returnerar sannolikheter för varje regim
         """
 
@@ -210,6 +216,74 @@ class RegimeDetector:
         drawdown_bear_threshold = self.drawdown_bear_threshold
 
         scores = {regime: 0.0 for regime in MarketRegime}
+
+        # VIX-based regime scoring (if available and enabled)
+        if (vix_data is not None and not vix_data.empty and
+            self.vix_config.get('enabled', False)):
+            try:
+                # Get latest VIX regime
+                latest_vix = vix_data.iloc[-1]
+                vix_regime = latest_vix['vix_regime']
+                vix_level = latest_vix['vix_close']
+
+                # Get VIX configuration parameters
+                influence_weight = self.vix_config.get('influence_weight', 0.4)
+                override_threshold = self.vix_config.get('override_threshold', 18.0)
+                override_strength = self.vix_config.get('override_strength', 0.8)
+                regime_multipliers = self.vix_config.get('regime_multipliers', {})
+                momentum_adjustments = self.vix_config.get('momentum_adjustments', {})
+
+                # Apply base influence weight to all VIX contributions
+                base_influence = influence_weight
+
+                # VIX regime mapping to market regimes using configurable multipliers
+                if vix_regime == 'low_fear':  # VIX < 20
+                    low_fear_config = regime_multipliers.get('low_fear', {})
+                    scores[MarketRegime.BULL] += base_influence * low_fear_config.get('bull_boost', 0.6)
+                    scores[MarketRegime.BEAR] += base_influence * low_fear_config.get('bear_penalty', -0.3)
+                    scores[MarketRegime.NEUTRAL] += base_influence * low_fear_config.get('neutral_boost', 0.1)
+                elif vix_regime == 'moderate_fear':  # VIX 20-30
+                    moderate_fear_config = regime_multipliers.get('moderate_fear', {})
+                    scores[MarketRegime.BULL] += base_influence * moderate_fear_config.get('bull_boost', 0.1)
+                    scores[MarketRegime.BEAR] += base_influence * moderate_fear_config.get('bear_penalty', 0.0)
+                    scores[MarketRegime.NEUTRAL] += base_influence * moderate_fear_config.get('neutral_boost', 0.4)
+                elif vix_regime == 'high_fear':  # VIX 30-40
+                    high_fear_config = regime_multipliers.get('high_fear', {})
+                    scores[MarketRegime.BULL] += base_influence * high_fear_config.get('bull_boost', -0.2)
+                    scores[MarketRegime.BEAR] += base_influence * high_fear_config.get('bear_penalty', 0.0)
+                    scores[MarketRegime.NEUTRAL] += base_influence * high_fear_config.get('neutral_boost', 0.2)
+                elif vix_regime == 'extreme_fear':  # VIX > 40
+                    extreme_fear_config = regime_multipliers.get('extreme_fear', {})
+                    scores[MarketRegime.BULL] += base_influence * extreme_fear_config.get('bull_boost', -0.4)
+                    scores[MarketRegime.BEAR] += base_influence * extreme_fear_config.get('bear_penalty', 0.0)
+                    scores[MarketRegime.NEUTRAL] += base_influence * extreme_fear_config.get('neutral_boost', 0.1)
+
+                # VIX momentum adjustment using configurable thresholds
+                if 'vix_momentum_5d' in latest_vix:
+                    vix_momentum = latest_vix['vix_momentum_5d']
+                    spike_threshold = momentum_adjustments.get('spike_threshold', 0.2)
+                    drop_threshold = momentum_adjustments.get('drop_threshold', -0.2)
+                    spike_bear_boost = momentum_adjustments.get('spike_bear_boost', 0.2)
+                    drop_bull_boost = momentum_adjustments.get('drop_bull_boost', 0.2)
+
+                    if vix_momentum > spike_threshold:  # VIX spiking = fear increasing
+                        scores[MarketRegime.BEAR] += base_influence * spike_bear_boost
+                        scores[MarketRegime.BULL] = max(0, scores[MarketRegime.BULL] - base_influence * spike_bear_boost)
+                    elif vix_momentum < drop_threshold:  # VIX falling = fear decreasing
+                        scores[MarketRegime.BULL] += base_influence * drop_bull_boost
+                        scores[MarketRegime.BEAR] = max(0, scores[MarketRegime.BEAR] - base_influence * drop_bull_boost)
+
+                # VIX override logic for very low VIX levels
+                if vix_level < override_threshold:
+                    override_boost = override_strength * base_influence
+                    scores[MarketRegime.BULL] += override_boost
+                    scores[MarketRegime.BEAR] = max(0, scores[MarketRegime.BEAR] - override_boost * 0.5)
+
+                print(f"🔍 VIX regime: {vix_regime} (level: {vix_level:.1f}, influence: {base_influence:.1f}) - Bull: +{scores[MarketRegime.BULL]:.2f}, Bear: +{scores[MarketRegime.BEAR]:.2f}")
+
+            except Exception as e:
+                print(f"⚠️ Error processing VIX data in regime classification: {e}")
+                # Continue without VIX
 
         # Volatility-based classification
         vol = features['vol_20d']
@@ -296,9 +370,13 @@ class RegimeDetector:
 
         return smoothed_probs
 
-    def detect_regime(self, prices: pd.DataFrame) -> Tuple[MarketRegime, Dict[MarketRegime, float], Dict]:
+    def detect_regime(self, prices: pd.DataFrame, vix_data: Optional[pd.DataFrame] = None) -> Tuple[MarketRegime, Dict[MarketRegime, float], Dict]:
         """
-        Huvudfunktion för regime-detektion
+        Huvudfunktion för regime-detektion med VIX integration
+
+        Args:
+            prices: Price data for regime detection
+            vix_data: Optional VIX data for enhanced regime classification
 
         Returns:
         - Most likely regime
@@ -317,8 +395,8 @@ class RegimeDetector:
         # Ta senaste observation
         latest_features = features.iloc[-1]
 
-        # Heuristisk klassificering
-        raw_probabilities = self.classify_regime_heuristic(latest_features)
+        # Heuristisk klassificering med VIX
+        raw_probabilities = self.classify_regime_heuristic(latest_features, vix_data)
 
         # Applicera transition smoothing
         previous_regime = self.regime_history[-1] if self.regime_history else None
@@ -352,6 +430,23 @@ class RegimeDetector:
             self.regime_probabilities_history = self.regime_probabilities_history[-100:]
 
         return most_likely_regime, smoothed_probabilities, diagnostics
+
+    def detect_current_regime(self, ticker_prices: pd.DataFrame, vix_data: Optional[pd.DataFrame] = None):
+        """
+        Convenience method for current regime detection with VIX support.
+
+        Returns RegimeResult-like object for compatibility.
+        """
+        regime, probabilities, diagnostics = self.detect_regime(ticker_prices, vix_data)
+
+        # Create a simple result object with required attributes
+        class RegimeResult:
+            def __init__(self, regime, confidence):
+                self.regime = regime
+                self.confidence = confidence
+
+        confidence = probabilities[regime] if regime in probabilities else 0.33
+        return RegimeResult(regime, confidence)
 
     def get_regime_adjustments(self, regime: MarketRegime) -> Dict[str, float]:
         """Hämta signal adjustments för given regim"""

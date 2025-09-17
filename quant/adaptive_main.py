@@ -13,6 +13,7 @@ from typing import Dict, Optional
 
 from quant.data_layer.prices import fetch_prices
 from quant.data_layer.news import fetch_news
+from quant.data_layer.macro import fetch_vix
 from quant.features.technical import compute_technical_features
 from quant.features.sentiment import naive_sentiment
 from quant.bayesian.adaptive_integration import AdaptiveBayesianEngine
@@ -197,6 +198,12 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
         cache_dir=config['data']['cache_dir']
     )
 
+    # Fetch VIX data for enhanced regime detection
+    vix_data = fetch_vix(
+        cache_dir=config['data']['cache_dir'],
+        lookback_days=config['data']['lookback_days']
+    )
+
     # Compute current features
     tech = compute_technical_features(
         prices,
@@ -206,8 +213,8 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
 
     senti = naive_sentiment(news, universe)
 
-    # Generate raw recommendations using adaptive Bayesian engine
-    recommendations = engine.bayesian_score_adaptive(tech, senti, prices)
+    # Generate raw recommendations using adaptive Bayesian engine with VIX
+    recommendations = engine.bayesian_score_adaptive(tech, senti, prices, vix_data)
 
     # Apply portfolio rules for simulated execution
     portfolio_mgr = PortfolioManager(config)

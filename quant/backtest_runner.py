@@ -17,6 +17,7 @@ from quant.backtesting.framework import BacktestEngine, BacktestPeriod, Backtest
 from quant.backtesting.attribution import PerformanceAttributor
 from quant.data_layer.prices import fetch_prices
 from quant.data_layer.news import fetch_news
+from quant.data_layer.macro import fetch_vix
 from quant.features.technical import compute_technical_features
 from quant.features.sentiment import naive_sentiment
 from quant.portfolio.rules import PortfolioManager
@@ -35,7 +36,7 @@ def create_static_engine(config):
     # Use the regular BayesianPolicyEngine with hardcoded parameters
     return BayesianPolicyEngine(config)
 
-def run_backtest_period(engine, config, start_date, end_date):
+def run_backtest_period(engine, config, start_date, end_date, engine_type="unknown"):
     """Run backtest for a specific period with given engine."""
 
     # Get universe
@@ -80,11 +81,29 @@ def run_backtest_period(engine, config, start_date, end_date):
 
     senti = naive_sentiment(news, universe)
 
+    # Fetch VIX data for enhanced regime detection
+    vix_data = fetch_vix(
+        cache_dir=config['data']['cache_dir'],
+        lookback_days=1000  # Same as price data lookback
+    )
+
     print(f"Backtest data: {len(tech_backtest)} tech records from {tech_backtest['date'].min()} to {tech_backtest['date'].max()}")
+    if not vix_data.empty:
+        print(f"VIX data: {len(vix_data)} records from {vix_data['date'].min().date()} to {vix_data['date'].max().date()}")
 
     # Generate recommendations for each day
     daily_results = []
-    portfolio_tracker = PortfolioTracker(config['data']['cache_dir'] + "/backtest_portfolio")
+    # CRITICAL FIX: Use separate portfolio directories for each engine type
+    portfolio_dir = config['data']['cache_dir'] + f"/backtest_portfolio_{engine_type}"
+
+    # Reset portfolio to clean state by removing existing state files
+    from pathlib import Path
+    import shutil
+    portfolio_path = Path(portfolio_dir)
+    if portfolio_path.exists():
+        shutil.rmtree(portfolio_path)
+
+    portfolio_tracker = PortfolioTracker(portfolio_dir)
     portfolio_mgr = PortfolioManager(config)
 
     # Get unique dates and sort them
@@ -103,18 +122,22 @@ def run_backtest_period(engine, config, start_date, end_date):
         # This fixes the duplicate recommendation issue where tail() was creating 235 duplicates
         latest_tech = tech_current.groupby('ticker').tail(1)
 
-        # Generate recommendations using the engine
+        # Generate recommendations using the engine with VIX data
+        current_vix = vix_data[vix_data['date'] <= current_date] if not vix_data.empty else None
+
         if hasattr(engine, 'bayesian_score_adaptive'):
             recommendations = engine.bayesian_score_adaptive(
                 latest_tech,  # Use deduplicated latest data per ticker
                 senti,
-                prices_period[prices_period['date'] <= current_date]
+                prices_period[prices_period['date'] <= current_date],
+                current_vix
             )
         else:
             recommendations = engine.bayesian_score(
                 latest_tech,  # Use deduplicated latest data per ticker
                 senti,
-                prices_period[prices_period['date'] <= current_date]
+                prices_period[prices_period['date'] <= current_date],
+                current_vix
             )
 
         if len(recommendations) == 0:
@@ -230,7 +253,7 @@ def main():
     adaptive_engine = create_adaptive_engine(config, prices_hist, sentiment_hist, tech_hist, returns_hist)
 
     try:
-        adaptive_results = run_backtest_period(adaptive_engine, config, start_date, end_date)
+        adaptive_results = run_backtest_period(adaptive_engine, config, start_date, end_date, "adaptive")
 
         print(f"\n=== Adaptive Engine Results ===")
         print(f"Total Return: {adaptive_results.total_return:.2%}")
@@ -252,7 +275,7 @@ def main():
     static_engine = create_static_engine(config)
 
     try:
-        static_results = run_backtest_period(static_engine, config, start_date, end_date)
+        static_results = run_backtest_period(static_engine, config, start_date, end_date, "static")
 
         print(f"\n=== Static Engine Results ===")
         print(f"Total Return: {static_results.total_return:.2%}")
@@ -274,6 +297,26 @@ def main():
         print(f"Drawdown Improvement: {drawdown_improvement:.2%}")
         print(f"Win Rate Improvement: {(adaptive_results.win_rate - static_results.win_rate):.2%}")
 
+        # CRITICAL ANALYSIS: Trade frequency comparison
+        print(f"\n=== Trading Activity Analysis ===")
+        print(f"Adaptive Total Trades: {adaptive_results.total_trades}")
+        print(f"Static Total Trades: {static_results.total_trades}")
+        print(f"Trade Frequency Difference: {adaptive_results.total_trades - static_results.total_trades} trades")
+
+        # Calculate trade efficiency (return per trade)
+        adaptive_return_per_trade = adaptive_results.total_return / adaptive_results.total_trades if adaptive_results.total_trades > 0 else 0
+        static_return_per_trade = static_results.total_return / static_results.total_trades if static_results.total_trades > 0 else 0
+
+        print(f"Adaptive Return per Trade: {adaptive_return_per_trade:.4f}")
+        print(f"Static Return per Trade: {static_return_per_trade:.4f}")
+
+        if adaptive_results.total_trades > static_results.total_trades:
+            print("🔍 Adaptive trades more frequently - possibly overtrading")
+        elif static_results.total_trades > adaptive_results.total_trades:
+            print("🔍 Static trades more frequently - possibly more decisive")
+        else:
+            print("🔍 Similar trading frequency - difference is in trade quality")
+
         # Save results
         results_dir = Path("backtesting_results")
         results_dir.mkdir(exist_ok=True)
@@ -289,19 +332,28 @@ def main():
                 'annualized_return': adaptive_results.annualized_return,
                 'sharpe_ratio': adaptive_results.sharpe_ratio,
                 'max_drawdown': adaptive_results.max_drawdown,
-                'win_rate': adaptive_results.win_rate
+                'win_rate': adaptive_results.win_rate,
+                'total_trades': adaptive_results.total_trades
             },
             'static_results': {
                 'total_return': static_results.total_return,
                 'annualized_return': static_results.annualized_return,
                 'sharpe_ratio': static_results.sharpe_ratio,
                 'max_drawdown': static_results.max_drawdown,
-                'win_rate': static_results.win_rate
+                'win_rate': static_results.win_rate,
+                'total_trades': static_results.total_trades
             },
             'improvements': {
                 'return_improvement': return_improvement,
                 'sharpe_improvement': sharpe_improvement,
                 'drawdown_improvement': drawdown_improvement
+            },
+            'trading_analysis': {
+                'adaptive_trades': adaptive_results.total_trades,
+                'static_trades': static_results.total_trades,
+                'trade_frequency_difference': adaptive_results.total_trades - static_results.total_trades,
+                'adaptive_return_per_trade': adaptive_return_per_trade,
+                'static_return_per_trade': static_return_per_trade
             }
         }
 
