@@ -220,8 +220,8 @@ SENTIMENT:
 #### Data Quality Monitoring
 ```python
 # Automatic data quality checks:
-⚠️ Saknar prisdata för 3 tickers: ERIC-B, TELIA, VOLV-B
-⚠️ Identiska signalvärden för tickers: ASSA-B, ATCO-A. Kontrollera mapping och källdata.
+⚠️ Missing price data for 3 tickers: ERIC-B, TELIA, VOLV-B
+⚠️ Identical signal values for tickers: ASSA-B, ATCO-A. Verify mapping and source data.
 ```
 
 ## Configuration

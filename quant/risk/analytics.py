@@ -6,7 +6,7 @@ from .heavy_tail import HeavyTailRiskModel, TailRiskMetrics, MonteCarloResults
 
 @dataclass
 class PortfolioRiskProfile:
-    """Comprehensive risk profile för en portfolio position"""
+    """Comprehensive risk profile for a portfolio position."""
     ticker: str
     expected_return_annual: float
     volatility_annual: float
@@ -17,8 +17,8 @@ class PortfolioRiskProfile:
 
     # Risk-adjusted metrics
     sharpe_ratio: float
-    tail_risk_adjusted_return: float  # E[r] justerat för tail risk
-    risk_contribution: float          # Contribution till portfolio risk
+    tail_risk_adjusted_return: float  # E[r] adjusted for tail risk
+    risk_contribution: float          # Contribution to portfolio risk
 
     # Scenario probabilities (12 months)
     prob_loss_10_percent: float
@@ -33,10 +33,10 @@ class PortfolioRiskProfile:
 
 @dataclass
 class MarketStressScenario:
-    """Stress test scenario definition"""
+    """Stress test scenario definition."""
     name: str
     description: str
-    market_shock_size: float          # Size of market shock (e.g., -0.20 för -20%)
+    market_shock_size: float          # Size of market shock (e.g., -0.20 for -20%)
     volatility_multiplier: float      # How much vol increases (e.g., 2.0)
     correlation_increase: float       # How much correlations increase (0.2 → 0.8)
     duration_days: int                # How long shock lasts
@@ -45,7 +45,7 @@ class MarketStressScenario:
 STRESS_SCENARIOS = {
     "black_monday": MarketStressScenario(
         name="Black Monday",
-        description="Severe market crash med -20% fall och vol spike",
+        description="Severe market crash with a -20% drop and volatility spike",
         market_shock_size=-0.20,
         volatility_multiplier=3.0,
         correlation_increase=0.6,
@@ -53,7 +53,7 @@ STRESS_SCENARIOS = {
     ),
     "covid_crash": MarketStressScenario(
         name="COVID-19 Crash",
-        description="Pandemic-style crash med extended volatility",
+        description="Pandemic-style crash with extended volatility",
         market_shock_size=-0.35,
         volatility_multiplier=2.5,
         correlation_increase=0.5,
@@ -61,7 +61,7 @@ STRESS_SCENARIOS = {
     ),
     "dot_com_burst": MarketStressScenario(
         name="Dot-Com Burst",
-        description="Tech bubble burst med långsam recovery",
+        description="Tech bubble burst with a slow recovery",
         market_shock_size=-0.50,
         volatility_multiplier=2.0,
         correlation_increase=0.4,
@@ -69,7 +69,7 @@ STRESS_SCENARIOS = {
     ),
     "regime_shift": MarketStressScenario(
         name="Regime Shift",
-        description="Strukturell förändring i marknadsregim",
+        description="Structural change in market regime",
         market_shock_size=-0.15,
         volatility_multiplier=1.8,
         correlation_increase=0.3,
@@ -79,12 +79,12 @@ STRESS_SCENARIOS = {
 
 class RiskAnalytics:
     """
-    Advanced risk analytics med heavy-tail modeling
+    Advanced risk analytics incorporating heavy-tail modelling.
 
-    Funktioner:
+    Capabilities:
     1. Portfolio-level tail risk assessment
-    2. Stress testing mot historical scenarios
-    3. Risk budgeting och contribution analysis
+    2. Stress testing against historical scenarios
+    3. Risk budgeting and contribution analysis
     4. Monte Carlo scenario analysis
     5. Risk-adjusted position sizing
     """
@@ -92,7 +92,7 @@ class RiskAnalytics:
     def __init__(self, config: Optional[Dict] = None):
         self.heavy_tail_model = HeavyTailRiskModel(config)
 
-        # Risk analytics konfiguration
+        # Risk analytics configuration
         if config and 'risk_analytics' in config:
             risk_config = config['risk_analytics']
             self.stress_test_scenarios = risk_config.get('stress_scenarios', list(STRESS_SCENARIOS.keys()))
@@ -109,12 +109,12 @@ class RiskAnalytics:
                              expected_return: float,
                              time_horizon_months: int = 12) -> PortfolioRiskProfile:
         """
-        Comprehensive risk analysis för en enskild position
+        Comprehensive risk analysis for a single position.
 
         Args:
             ticker: Stock ticker
             price_history: Historical price series
-            expected_return: Annual expected return från Bayesian model
+            expected_return: Annual expected return from the Bayesian model
             time_horizon_months: Analysis horizon
 
         Returns:
@@ -125,7 +125,7 @@ class RiskAnalytics:
         returns = price_history.pct_change().dropna()
 
         if len(returns) < 30:
-            raise ValueError(f"För få historiska observationer för {ticker} (behöver ≥30)")
+            raise ValueError(f"Too few historical observations for {ticker} (need ≥30)")
 
         # Historical volatility
         annual_volatility = returns.std() * np.sqrt(252)
@@ -133,12 +133,12 @@ class RiskAnalytics:
         # Fit heavy-tail distribution
         tail_params = self.heavy_tail_model.fit_heavy_tail_distribution(returns)
 
-        # Calculate tail risk metrics (21-day horizon för comparability)
+        # Calculate tail risk metrics (21-day horizon for comparability)
         tail_risk_21d = self.heavy_tail_model.calculate_tail_risk_metrics(
             returns, confidence_level=0.95, time_horizon_days=21
         )
 
-        # Monte Carlo simulation för 12m horizon
+        # Monte Carlo simulation for a 12-month horizon
         mc_results = self.heavy_tail_model.monte_carlo_simulation(
             expected_return=expected_return,
             volatility=annual_volatility,
@@ -149,11 +149,11 @@ class RiskAnalytics:
         # Risk-adjusted metrics
         sharpe_ratio = (expected_return - self.risk_free_rate) / annual_volatility if annual_volatility > 0 else 0
 
-        # Tail risk adjustment - penalize heavy-tail risk
-        tail_risk_penalty = tail_risk_21d.tail_risk_multiplier - 1.0  # Extra risk från heavy tails
+        # Tail risk adjustment - penalise heavy-tail risk
+        tail_risk_penalty = tail_risk_21d.tail_risk_multiplier - 1.0  # Additional risk from heavy tails
         tail_risk_adjusted_return = expected_return - (tail_risk_penalty * annual_volatility)
 
-        # Risk contribution (approximation för portfolio context)
+        # Risk contribution (approximation for the portfolio context)
         risk_contribution = annual_volatility  # Will be properly calculated at portfolio level
 
         return PortfolioRiskProfile(
@@ -210,7 +210,7 @@ class RiskAnalytics:
                               portfolio_weights: Dict[str, float],
                               risk_profiles: Dict[str, PortfolioRiskProfile],
                               scenario: MarketStressScenario) -> Dict:
-        """Apply stress scenario till portfolio"""
+        """Apply a stress scenario to the portfolio."""
 
         portfolio_loss = 0.0
         position_impacts = {}
@@ -226,7 +226,7 @@ class RiskAnalytics:
 
             # Apply volatility shock (affects tail risk)
             vol_shock = risk_profile.volatility_annual * scenario.volatility_multiplier
-            tail_shock = vol_shock * np.sqrt(scenario.duration_days / 252)  # Scale för duration
+            tail_shock = vol_shock * np.sqrt(scenario.duration_days / 252)  # Scale for duration
 
             # Heavy-tail amplification under stress
             tail_multiplier = risk_profile.tail_risk_metrics.tail_risk_multiplier
@@ -256,14 +256,14 @@ class RiskAnalytics:
                               risk_profiles: Dict[str, PortfolioRiskProfile],
                               target_portfolio_vol: float = None) -> Dict[str, Dict]:
         """
-        Calculate optimal position sizes baserat på risk budgeting
+        Calculate optimal position sizes based on risk budgeting.
 
         Args:
-            risk_profiles: Risk profiles för alla candidates
+            risk_profiles: Risk profiles for all candidates
             target_portfolio_vol: Target portfolio volatility
 
         Returns:
-            Dict med recommended weights och risk budgets
+            Dict containing recommended weights and risk budgets
         """
 
         if target_portfolio_vol is None:
@@ -279,7 +279,7 @@ class RiskAnalytics:
 
         for ticker, profile in risk_profiles.items():
             if profile.volatility_annual > 0:
-                # Base weight från inverse volatility
+                # Base weight from inverse volatility
                 base_weight = (1.0 / profile.volatility_annual) / total_inv_vol
 
                 # Tail risk adjustment
@@ -330,7 +330,7 @@ class RiskAnalytics:
             if ticker in risk_profiles and weight > 0
         )
 
-        # Simple portfolio volatility (assumes zero correlation för simplicity)
+        # Simple portfolio volatility (assumes zero correlation for simplicity)
         portfolio_variance = sum(
             (weight * risk_profiles[ticker].volatility_annual)**2
             for ticker, weight in portfolio_weights.items()

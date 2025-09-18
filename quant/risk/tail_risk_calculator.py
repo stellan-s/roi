@@ -2,8 +2,8 @@
 Proper tail risk calculation based on statistical definitions.
 
 Implements:
-- Tail Risk (huvudmått): P[return < -2σ] (nedsidesrisk)
-- Extreme Move Probability (sekundmått): P[|return| > 2σ] (tvåsidig)
+- Tail Risk (primary metric): P[return < -2σ] (downside risk)
+- Extreme Move Probability (secondary metric): P[|return| > 2σ] (two-sided)
 """
 
 import numpy as np

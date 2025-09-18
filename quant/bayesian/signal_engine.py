@@ -12,13 +12,13 @@ class SignalType(Enum):
 @dataclass
 class SignalPrior:
     """Bayesian prior for a signal"""
-    mean_effectiveness: float  # Prior belief på signal effectiveness (0-1)
+    mean_effectiveness: float  # Prior belief about signal effectiveness (0-1)
     confidence: float         # Prior precision (higher = more confident)
-    predictive_power: float   # Prior för predictive power
+    predictive_power: float   # Prior for predictive power
 
 @dataclass
 class SignalPosterior:
-    """Updated beliefs efter observationer"""
+    """Updated beliefs after observing outcomes."""
     mean_effectiveness: float
     std_effectiveness: float
     predictive_power: float
@@ -27,7 +27,7 @@ class SignalPosterior:
 
 @dataclass
 class SignalOutput:
-    """Output från Bayesian engine"""
+    """Output from the Bayesian engine."""
     expected_return: float     # E[r]
     prob_positive: float       # Pr(↑)
     confidence_lower: float    # Lower CI bound
@@ -37,12 +37,12 @@ class SignalOutput:
 
 class BayesianSignalEngine:
     """
-    Bayesiansk signalviktning som kombinerar trend/momentum/sentiment
-    för att producera E[r] och Pr(↑) med uncertainty quantification
+    Bayesian signal weighting that combines trend/momentum/sentiment
+    to produce E[r] and Pr(↑) with uncertainty quantification.
     """
 
     def __init__(self, config: Optional[Dict] = None):
-        # Configurable priors eller defaults
+        # Configurable priors or defaults
         if config and 'bayesian' in config and 'priors' in config['bayesian']:
             prior_config = config['bayesian']['priors']
             trend_eff = prior_config.get('trend_effectiveness', 0.55)
@@ -54,29 +54,29 @@ class BayesianSignalEngine:
             momentum_eff = 0.58
             sentiment_eff = 0.52
 
-        # Informativa priors baserat på finansteori och config
+        # Informative priors based on financial theory and configuration
         self.priors = {
             SignalType.TREND: SignalPrior(
                 mean_effectiveness=trend_eff,   # Configurable
-                confidence=10.0,                # Relativt säker på detta
-                predictive_power=0.4            # Moderat predictive power
+                confidence=10.0,                # Relatively confident
+                predictive_power=0.4            # Moderate predictive power
             ),
             SignalType.MOMENTUM: SignalPrior(
                 mean_effectiveness=momentum_eff, # Configurable
-                confidence=15.0,                 # Högre confidence
-                predictive_power=0.6             # Stark predictive power
+                confidence=15.0,                 # Higher confidence
+                predictive_power=0.6             # Strong predictive power
             ),
             SignalType.SENTIMENT: SignalPrior(
                 mean_effectiveness=sentiment_eff, # Configurable
-                confidence=5.0,                   # Lägre confidence
-                predictive_power=0.3              # Svagare predictive power
+                confidence=5.0,                   # Lower confidence
+                predictive_power=0.3              # Weaker predictive power
             )
         }
 
-        # Posteriors uppdateras över tid
+        # Posteriors are updated over time
         self.posteriors: Dict[SignalType, SignalPosterior] = {}
 
-        # Performance tracking för Bayesian updates
+        # Track performance for Bayesian updates
         self.signal_history: List[Dict] = []
 
     def update_beliefs(self,
@@ -84,9 +84,9 @@ class BayesianSignalEngine:
                       actual_return: float,
                       time_horizon_days: int = 21) -> None:
         """
-        Bayesiansk uppdatering av beliefs baserat på faktisk performance
+        Bayesian update of beliefs based on realised performance.
         """
-        # Lagra observation för framtida analysis
+        # Store observation for future analysis
         self.signal_history.append({
             'signals': signal_values.copy(),
             'actual_return': actual_return,
@@ -94,7 +94,7 @@ class BayesianSignalEngine:
             'timestamp': pd.Timestamp.now()
         })
 
-        # Uppdatera posteriors för varje signal
+        # Update posteriors for each signal
         for signal_type, signal_value in signal_values.items():
             self._update_signal_posterior(signal_type, signal_value, actual_return)
 
@@ -102,17 +102,17 @@ class BayesianSignalEngine:
                                signal_type: SignalType,
                                signal_value: float,
                                actual_return: float) -> None:
-        """Uppdatera posterior för en specifik signal"""
+        """Update the posterior for a specific signal."""
         prior = self.priors[signal_type]
 
-        # Likelihood: hur väl signalen predicerade return
+        # Likelihood: how well the signal predicted the return
         # Signal "strength" * actual return correlation
-        signal_strength = abs(signal_value)  # 0-1 för normaliserade signals
+        signal_strength = abs(signal_value)  # 0-1 for normalised signals
         prediction_accuracy = 1.0 if (signal_value > 0) == (actual_return > 0) else 0.0
 
-        # Bayesian update med Beta-Binomial conjugate prior
+        # Bayesian update with a Beta-Binomial conjugate prior
         if signal_type not in self.posteriors:
-            # Initialize posterior från prior
+            # Initialise posterior from the prior
             alpha_prior = prior.mean_effectiveness * prior.confidence
             beta_prior = (1 - prior.mean_effectiveness) * prior.confidence
 
@@ -127,18 +127,18 @@ class BayesianSignalEngine:
 
         posterior = self.posteriors[signal_type]
 
-        # Update med ny observation (weighted by signal strength)
+        # Update with new observation (weighted by signal strength)
         effective_obs = signal_strength  # Stronger signals get more weight
         alpha_post = prior.mean_effectiveness * prior.confidence + prediction_accuracy * effective_obs
         beta_post = (1 - prior.mean_effectiveness) * prior.confidence + (1 - prediction_accuracy) * effective_obs
 
-        # Uppdaterade posterior parameters
+        # Updated posterior parameters
         new_mean = alpha_post / (alpha_post + beta_post)
         new_variance = (alpha_post * beta_post) / ((alpha_post + beta_post)**2 * (alpha_post + beta_post + 1))
         new_std = np.sqrt(new_variance)
 
-        # 95% credible interval (approximation utan scipy)
-        # Använd normal approximation för beta distribution
+        # 95% credible interval (approximation without SciPy)
+        # Use a normal approximation for the beta distribution
         ci_lower = max(0.0, new_mean - 1.96 * new_std)
         ci_upper = min(1.0, new_mean + 1.96 * new_std)
 
@@ -154,9 +154,9 @@ class BayesianSignalEngine:
                        signal_values: Dict[SignalType, float],
                        regime_adjustment: float = 1.0) -> SignalOutput:
         """
-        Kombinera signals med Bayesian weighting för att få E[r] och Pr(↑)
+        Combine signals with Bayesian weighting to obtain E[r] and Pr(↑).
         """
-        # Get current posterior weights (eller fall back till priors)
+        # Get current posterior weights (or fall back to priors)
         weights = {}
         total_confidence = 0
 
@@ -170,7 +170,7 @@ class BayesianSignalEngine:
                          (1 / (1 + uncertainty)) *
                          regime_adjustment)
             else:
-                # Använd prior om ingen posterior finns än
+                # Use the prior if no posterior exists yet
                 prior = self.priors[signal_type]
                 weight = (prior.mean_effectiveness *
                          prior.predictive_power *
@@ -179,18 +179,18 @@ class BayesianSignalEngine:
             weights[signal_type] = weight
             total_confidence += weight
 
-        # Normalisera weights
+        # Normalise weights
         if total_confidence > 0:
             weights = {k: v/total_confidence for k, v in weights.items()}
 
-        # Weighted combination av signals
+        # Weighted combination of signals
         combined_signal = sum(weights[st] * signal_values[st] for st in signal_values.keys())
 
-        # Convert till expected return och probability
-        # Använd sigmoid-transformation för Pr(↑)
+        # Convert to expected return and probability
+        # Use a sigmoid transformation for Pr(↑)
         prob_positive = 1 / (1 + np.exp(-3 * combined_signal))  # Sigmoid with scaling
 
-        # Expected return baserat på signal strength och historical relationships
+        # Expected return based on signal strength and historical relationships
         base_return_annual = 0.08  # 8% baseline annual return assumption
         signal_multiplier = combined_signal * 2  # Signal kan ge +/- 200% av base
         expected_return = base_return_annual * (1 + signal_multiplier) / 252  # Daily return
@@ -215,7 +215,7 @@ class BayesianSignalEngine:
         )
 
     def get_signal_diagnostics(self) -> pd.DataFrame:
-        """Diagnostics för signal performance och beliefs"""
+        """Diagnostics summarising signal performance and beliefs."""
         diagnostics = []
 
         for signal_type, posterior in self.posteriors.items():

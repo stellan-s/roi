@@ -7,7 +7,7 @@ def compute_technical_features(prices: pd.DataFrame, sma_long=200, momentum_wind
     df["sma_long"] = df.groupby("ticker")["close"].transform(lambda s: s.rolling(sma_long, min_periods=20).mean())
     df["above_sma"] = (df["close"] > df["sma_long"]).astype(int)
     df["mom"] = df.groupby("ticker")["close"].transform(lambda s: s.pct_change(momentum_window))
-    # normalisera enkelt: z-score per dag på mom
+    # Simple normalisation: per-day percentile ranking of momentum
     df["mom_rank"] = df.groupby("date")["mom"].rank(pct=True)
     # More conservative data cleaning - preserve more data
     feats = df[["date","ticker","close","above_sma","mom","mom_rank"]]

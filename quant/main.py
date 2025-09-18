@@ -27,7 +27,7 @@ def _log_data_quality_issues(universe, prices_df: pd.DataFrame, recommendations:
     available_prices = set(prices_df['ticker'].unique()) if not prices_df.empty else set()
     missing_prices = [ticker for ticker in universe if ticker not in available_prices]
     if missing_prices:
-        print(f"⚠️ Saknar prisdata för {len(missing_prices)} tickers: {', '.join(sorted(missing_prices))}")
+        print(f"⚠️ Missing price data for {len(missing_prices)} tickers: {', '.join(sorted(missing_prices))}")
 
     if recommendations.empty:
         return
@@ -57,7 +57,7 @@ def _log_data_quality_issues(universe, prices_df: pd.DataFrame, recommendations:
     if not duplicate_groups.empty:
         for _, row in duplicate_groups.iterrows():
             tickers = sorted(set(row['ticker']))
-            print(f"⚠️ Identiska signalvärden för tickers: {', '.join(tickers)}. Kontrollera mapping och källdata.")
+            print(f"⚠️ Identical signal values for tickers: {', '.join(tickers)}. Verify mapping and source data.")
 
 
 def _log_recommendations(decisions: pd.DataFrame,
@@ -65,7 +65,7 @@ def _log_recommendations(decisions: pd.DataFrame,
                          cache_dir: str) -> None:
     """Persist daily recommendations and simulated trades for transparent evaluation."""
     if decisions.empty:
-        print("ℹ️ Inga rekommendationer att logga idag.")
+        print("ℹ️ No recommendations to log today.")
         return
 
     log_dir = Path(cache_dir) / "recommendation_logs"
@@ -80,7 +80,7 @@ def _log_recommendations(decisions: pd.DataFrame,
 
     rec_path = log_dir / f"recommendations_{run_date_str}.parquet"
     decisions_to_log.to_parquet(rec_path, index=False)
-    print(f"📝 Sparade dagens rekommendationer till {rec_path}")
+    print(f"📝 Saved today's recommendations to {rec_path}")
 
     trades_path = log_dir / f"simulated_trades_{run_date_str}.json"
     with open(trades_path, 'w') as f:
@@ -92,9 +92,9 @@ def _log_recommendations(decisions: pd.DataFrame,
         }, f, indent=2)
 
     if executed_trades:
-        print(f"🧾 Loggade {len(executed_trades)} simulerade affärer till {trades_path}")
+        print(f"🧾 Logged {len(executed_trades)} simulated trades to {trades_path}")
     else:
-        print("ℹ️ Inga simulerade affärer genomfördes idag (logg sparad för spårbarhet).")
+        print("ℹ️ No simulated trades executed today (log saved for traceability).")
 
 def load_configuration() -> Dict:
     """Load configuration from YAML files."""

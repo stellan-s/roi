@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test script för Regime Detector
-Visar regime-klassificering och förklaringar
+Test script for the Regime Detector
+Shows regime classification and explanations
 """
 
 import sys
@@ -17,31 +17,31 @@ from quant.regime.detector import RegimeDetector, MarketRegime
 from quant.policy_engine.rules import get_regime_info, get_regime_history
 
 def test_regime_detection():
-    """Test regime detector med riktig marknadsdata"""
+    """Test the regime detector with real market data"""
     print("=== REGIME DETECTOR TEST ===")
 
-    # Ladda data
+    # Load data
     uni = load_yaml("universe.yaml")["tickers"]
     cfg = load_yaml("settings.yaml")
     cache = cfg["data"]["cache_dir"]
 
     prices = fetch_prices(uni, cache, cfg["data"]["lookback_days"])
-    print(f"Loaded {len(prices)} price observations för {prices['ticker'].nunique()} tickers")
+    print(f"Loaded {len(prices)} price observations for {prices['ticker'].nunique()} tickers")
 
-    # Skapa detector instance
+    # Create detector instance
     detector = RegimeDetector()
 
-    # Kör regime detection
+    # Run regime detection
     current_regime, probabilities, diagnostics = detector.detect_regime(prices)
 
     print(f"\n=== REGIME DETECTION RESULTS ===")
-    print(f"Aktuell regim: {current_regime.value} ({probabilities[current_regime]*100:.1f}% säkerhet)")
+    print(f"Current regime: {current_regime.value} ({probabilities[current_regime]*100:.1f}% confidence)")
 
-    print(f"\nSannolikheter:")
+    print(f"\nProbabilities:")
     for regime, prob in probabilities.items():
         print(f"  {regime.value}: {prob*100:.1f}%")
 
-    print(f"\nMarknadsfeatures:")
+    print(f"\nMarket features:")
     features = diagnostics["market_features"]
     for key, value in features.items():
         if isinstance(value, float):
@@ -52,16 +52,16 @@ def test_regime_detection():
             else:
                 print(f"  {key}: {value:.3f}")
 
-    # Visa regime explanation
-    print(f"\n=== REGIME FÖRKLARING ===")
+    # Show regime explanation
+    print(f"\n=== REGIME EXPLANATION ===")
     explanation = detector.get_regime_explanation(current_regime, probabilities, diagnostics)
     print(explanation)
 
-    # Test flera dagar för att se regime persistence
+    # Test multiple days to observe regime persistence
     print(f"\n=== REGIME PERSISTENCE TEST ===")
-    print("Testing regime stability över tid...")
+    print("Testing regime stability over time...")
 
-    # Simulera flera calls (som skulle hända i real pipeline)
+    # Simulate multiple calls (matching the real pipeline behaviour)
     for i in range(5):
         regime, probs, diag = detector.detect_regime(prices)
         persistence = diag.get("regime_persistence", 0)
@@ -70,10 +70,10 @@ def test_regime_detection():
     return detector
 
 def test_integration_with_bayesian():
-    """Test integration med Bayesian engine"""
-    print(f"\n=== INTEGRATION TEST MED BAYESIAN ENGINE ===")
+    """Test integration with the Bayesian engine"""
+    print(f"\n=== INTEGRATION TEST WITH BAYESIAN ENGINE ===")
 
-    # Kör main pipeline som inkluderar regime detection
+    # Run the main pipeline that includes regime detection
     from quant.main import load_yaml
     from quant.data_layer.prices import fetch_prices
     from quant.data_layer.news import fetch_news
@@ -90,37 +90,37 @@ def test_integration_with_bayesian():
     tech = compute_technical_features(prices, cfg["signals"]["sma_long"], cfg["signals"]["momentum_window"])
     senti = naive_sentiment(news, uni)
 
-    # Bayesian scoring med regime detection
+    # Bayesian scoring with regime detection
     results = bayesian_score(tech, senti, prices)
 
-    print(f"Bayesian results med regime detection:")
+    print(f"Bayesian results with regime detection:")
     print(f"Shape: {results.shape}")
-    print(f"Nya kolumner: {[col for col in results.columns if 'regime' in col]}")
+    print(f"New columns: {[col for col in results.columns if 'regime' in col]}")
 
-    # Visa senaste resultat
+    # Show latest results
     latest_date = results['date'].max()
     latest = results[results['date'] == latest_date]
 
-    print(f"\nSenaste dag ({latest_date}) - Regime-justerade beslut:")
+    print(f"\nLatest day ({latest_date}) - Regime-adjusted decisions:")
     for _, row in latest.iterrows():
         print(f"{row['ticker']:>12} | Regime: {row['market_regime']:>8} | Decision: {row['decision']:>4} | "
               f"E[r]: {row['expected_return']*100:>6.2f}% | Pr(↑): {row['prob_positive']*100:>5.1f}%")
 
-    # Hämta regime info
+    # Fetch regime info
     try:
         regime_info = get_regime_info()
-        print(f"\nAktuell regime från API: {regime_info['regime']} ({regime_info['confidence']*100:.0f}% confidence)")
+        print(f"\nCurrent regime from API: {regime_info['regime']} ({regime_info['confidence']*100:.0f}% confidence)")
 
         # Regime history
         regime_history = get_regime_history()
         if not regime_history.empty:
-            print(f"\nRegime history (senaste 5):")
+            print(f"\nRegime history (latest 5):")
             recent = regime_history.tail(5)
             for _, row in recent.iterrows():
                 print(f"  {row['index']:>3}: {row['regime']:>8} ({row['confidence']*100:>5.1f}%)")
 
     except Exception as e:
-        print(f"⚠️ Regime API test misslyckades: {e}")
+        print(f"⚠️ Regime API test failed: {e}")
 
     return results
 
@@ -132,17 +132,17 @@ if __name__ == "__main__":
         # Test 1: Core regime detection
         detector = test_regime_detection()
 
-        # Test 2: Integration med Bayesian
+        # Test 2: Integration with Bayesian engine
         results = test_integration_with_bayesian()
 
         print("\n" + "=" * 50)
-        print("✅ ALLA REGIME TESTER LYCKADES!")
-        print(f"✓ Regime detection: Fungerar med real marknadsdata")
-        print(f"✓ Bayesian integration: {len(results)} predictions med regime-justering")
-        print(f"✓ Report generation: Regime information i rapport")
+        print("✅ ALL REGIME TESTS PASSED!")
+        print(f"✓ Regime detection: Works with real market data")
+        print(f"✓ Bayesian integration: {len(results)} predictions with regime adjustments")
+        print(f"✓ Report generation: Regime information present in the report")
 
     except Exception as e:
-        print(f"\n❌ TEST MISSLYCKADES: {e}")
+        print(f"\n❌ TEST FAILED: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

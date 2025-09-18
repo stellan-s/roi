@@ -77,7 +77,7 @@ class TailRiskMetrics:
     # Primary measure: P[return < -2σ] (nedsidesrisk)
     downside_tail_risk: float     # Probability of downside tail events
 
-    # Secondary measure: P[|return| > 2σ] (extremrörelser)
+    # Secondary measure: P[|return| > 2σ] (extreme moves)
     extreme_move_prob: float      # Probability of extreme moves (two-sided)
 
     # Additional metrics

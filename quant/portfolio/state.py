@@ -7,7 +7,7 @@ from dataclasses import dataclass, asdict
 
 @dataclass
 class PortfolioHolding:
-    """Enskild holding i portfolio"""
+    """Single holding inside the portfolio."""
     ticker: str
     shares: float
     avg_cost: float
@@ -23,7 +23,7 @@ class PortfolioHolding:
 
 @dataclass
 class PortfolioState:
-    """Complete portfolio state vid given tidpunkt"""
+    """Complete portfolio state at a specific point in time."""
     date: str
     total_value: float
     cash: float
@@ -43,13 +43,13 @@ class PortfolioState:
 
 class PortfolioTracker:
     """
-    Portfolio state tracking och persistence
+    Portfolio state tracking and persistence layer.
 
-    Håller koll på:
-    - Aktuella holdings och values
-    - Historisk performance
+    Keeps track of:
+    - Current holdings and valuations
+    - Historical performance
     - Trade execution history
-    - Portfolio metrics över tid
+    - Portfolio metrics over time
     """
 
     def __init__(self, data_dir: str = "data/portfolio"):
@@ -85,7 +85,7 @@ class PortfolioTracker:
                 total_unrealized_pnl=data['total_unrealized_pnl']
             )
         except Exception as e:
-            print(f"⚠️ Kunde inte ladda portfolio state: {e}")
+            print(f"⚠️ Could not load portfolio state: {e}")
             return None
 
     def _load_portfolio_history(self) -> List[Dict]:
@@ -97,7 +97,7 @@ class PortfolioTracker:
             with open(self.history_file, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"⚠️ Kunde inte ladda portfolio history: {e}")
+            print(f"⚠️ Could not load portfolio history: {e}")
             return []
 
     def _load_trade_history(self) -> List[Dict]:
@@ -109,18 +109,18 @@ class PortfolioTracker:
             with open(self.trades_file, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"⚠️ Kunde inte ladda trade history: {e}")
+            print(f"⚠️ Could not load trade history: {e}")
             return []
 
     def update_portfolio_state(self,
                              new_prices: pd.DataFrame,
                              as_of_date: Optional[str] = None) -> PortfolioState:
         """
-        Uppdatera portfolio state med nya priser
+        Update portfolio state with the latest prices.
 
         Args:
-            new_prices: DataFrame med columns ['ticker', 'close']
-            as_of_date: Datum för uppdatering (default: today)
+            new_prices: DataFrame with columns ['ticker', 'close']
+            as_of_date: Date for the update (defaults to today)
         """
 
         if as_of_date is None:
@@ -130,20 +130,20 @@ class PortfolioTracker:
             # Initialize empty portfolio
             self.current_state = PortfolioState(
                 date=as_of_date,
-                total_value=100000.0,  # Start med 100k cash
+                total_value=100000.0,  # Start with 100k cash
                 cash=100000.0,
                 holdings=[],
                 total_invested=0.0,
                 total_unrealized_pnl=0.0
             )
 
-        # Update existing holdings med nya priser
+        # Update existing holdings with the new prices
         updated_holdings = []
         total_market_value = 0.0
         total_unrealized_pnl = 0.0
 
         for holding in self.current_state.holdings:
-            # Hitta nya priset
+            # Locate the new price
             price_row = new_prices[new_prices['ticker'] == holding.ticker]
 
             if not price_row.empty:
@@ -157,7 +157,7 @@ class PortfolioTracker:
                     avg_cost=holding.avg_cost,
                     current_price=new_price,
                     market_value=new_market_value,
-                    weight=0.0,  # Kommer beräknas efter alla holdings uppdaterade
+                    weight=0.0,  # Recalculated after all holdings are updated
                     unrealized_pnl=new_unrealized_pnl,
                     date_acquired=holding.date_acquired
                 )
@@ -166,19 +166,19 @@ class PortfolioTracker:
                 total_market_value += new_market_value
                 total_unrealized_pnl += new_unrealized_pnl
             else:
-                # Behåll old price om inget nytt pris
+                # Keep the previous price if no fresh price is provided
                 updated_holdings.append(holding)
                 total_market_value += holding.market_value
                 total_unrealized_pnl += holding.unrealized_pnl
 
-        # Beräkna total value och weights
+        # Compute total value and weights
         total_portfolio_value = total_market_value + self.current_state.cash
 
-        # Uppdatera weights
+        # Update weights
         for holding in updated_holdings:
             holding.weight = holding.market_value / total_portfolio_value if total_portfolio_value > 0 else 0
 
-        # Skapa uppdaterad state
+        # Create the updated state
         updated_state = PortfolioState(
             date=as_of_date,
             total_value=total_portfolio_value,
@@ -198,20 +198,20 @@ class PortfolioTracker:
                       current_prices: pd.DataFrame,
                       cash_per_position: float = 10000.0) -> List[Dict]:
         """
-        Simulera trade execution baserat på beslut från ROI system
+        Simulate trade execution based on ROI system decisions.
 
         Args:
-            trade_decisions: DataFrame med Buy/Sell decisions och weights
-            current_prices: DataFrame med aktuella priser
-            cash_per_position: Cash att allokera per position
+            trade_decisions: DataFrame containing Buy/Sell decisions and weights
+            current_prices: DataFrame with current prices
+            cash_per_position: Cash allocation per position
 
         Returns:
-            List av executed trades
+            List of executed trades
         """
 
         executed_trades = []
 
-        # Filter för buy decisions med weight > 0
+        # Filter for buy decisions with weight > 0
         buy_decisions = trade_decisions[
             (trade_decisions['decision'] == 'Buy') &
             (trade_decisions['portfolio_weight'] > 0)
@@ -221,18 +221,18 @@ class PortfolioTracker:
             ticker = row['ticker']
             target_weight = row['portfolio_weight']
 
-            # Hitta current price
+            # Find the current price
             price_row = current_prices[current_prices['ticker'] == ticker]
             if price_row.empty:
                 continue
 
             current_price = price_row.iloc[0]['close']
 
-            # Beräkna position size
+            # Calculate position size
             position_value = target_weight * self.current_state.total_value
             shares_to_buy = position_value / current_price
 
-            # Check om vi har cash
+            # Check if we have enough cash
             cost = shares_to_buy * current_price
             if cost <= self.current_state.cash:
                 # Execute trade
@@ -251,12 +251,12 @@ class PortfolioTracker:
 
                 executed_trades.append(trade)
 
-                # Uppdatera portfolio state
+                # Update portfolio state
                 self._add_holding(ticker, shares_to_buy, current_price)
                 self.current_state.cash -= cost
                 self.current_state.total_invested += cost
 
-                print(f"📈 KÖPT {shares_to_buy:.0f} {ticker} @ {current_price:.2f} (värde: {cost:.0f})")
+                print(f"📈 BOUGHT {shares_to_buy:.0f} {ticker} @ {current_price:.2f} (value: {cost:.0f})")
 
         # Save trades
         self.trade_history.extend(executed_trades)
@@ -266,9 +266,9 @@ class PortfolioTracker:
         return executed_trades
 
     def _add_holding(self, ticker: str, shares: float, price: float):
-        """Lägg till eller uppdatera holding"""
+        """Add or update a holding."""
 
-        # Check om vi redan har position
+        # Check if the position already exists
         existing_holding = None
         for i, holding in enumerate(self.current_state.holdings):
             if holding.ticker == ticker:
@@ -276,7 +276,7 @@ class PortfolioTracker:
                 break
 
         if existing_holding is not None:
-            # Uppdatera existing position (average cost)
+            # Update existing position (recalculate average cost)
             old_holding = self.current_state.holdings[existing_holding]
             total_shares = old_holding.shares + shares
             total_cost = old_holding.cost_basis + (shares * price)
@@ -288,12 +288,12 @@ class PortfolioTracker:
                 avg_cost=new_avg_cost,
                 current_price=price,
                 market_value=total_shares * price,
-                weight=0.0,  # Kommer uppdateras senare
+                weight=0.0,  # Will be updated later
                 unrealized_pnl=total_shares * price - total_cost,
                 date_acquired=old_holding.date_acquired
             )
         else:
-            # Skapa ny holding
+            # Create a new holding
             new_holding = PortfolioHolding(
                 ticker=ticker,
                 shares=shares,
@@ -308,7 +308,7 @@ class PortfolioTracker:
             self.current_state.holdings.append(new_holding)
 
     def get_portfolio_summary(self) -> Dict:
-        """Hämta portfolio summary för rapporter"""
+        """Return a portfolio summary for reporting."""
 
         if self.current_state is None:
             return {

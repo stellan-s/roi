@@ -52,24 +52,24 @@ The system generates a comprehensive daily report including:
 
 ### Enhanced Bayesian Recommendations
 ```
-## Köp-förslag
+## Buy Suggestions
 - **TSLA** @ 418.93 — E[r]_1d: +0.14% | E[R]_21d: +3.07% | Pr(↑): 92% | Confidence: 0.59 | σ: 31.03% | Downside VaR_1d: 🟡 2.8%
-  *Signalbidrag (normaliserade): Trend(0.25), Momentum(0.69), Sentiment(0.06)*
-  *Extremrörelser P[|r| > 2σ]: 6.0%*
+  *Signal contributions (normalised): Trend(0.25), Momentum(0.69), Sentiment(0.06)*
+  *Extreme move probability P[|r| > 2σ]: 6.0%*
 ```
 
 ### Market Analysis
 ```
-### 📊 Aktuell Marknadsregim: **Bear** (60% säkerhet)
-**Genomsnittlig tail risk:** 0.25 (0=låg, 1=hög)
-**Risk-fördelning:** 🟢17 / 🟡1 / 🔴0 aktier
+### 📊 Current Market Regime: **Bear** (60% confidence)
+**Average tail risk:** 0.25 (0=low, 1=high)
+**Risk distribution:** 🟢17 / 🟡1 / 🔴0 stocks
 ```
 
 ### Portfolio Status
 ```
-**Portföljvärde:** 100,000 SEK
-**Investerat kapital:** 0 SEK (0.0%)
-**Antal positioner:** 0
+**Portfolio value:** 100,000 SEK
+**Invested capital:** 0 SEK (0.0%)
+**Number of positions:** 0
 ```
 
 ## Understanding the Output

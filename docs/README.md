@@ -193,9 +193,9 @@ Learning Summary:
   Significant changes (>10%): 8
   Average change: 12.3%
 
-⚠️ Saknar prisdata för 3 tickers: ERIC-B.ST, TELIA.ST, VOLV-B.ST
-📝 Sparade dagens rekommendationer till data/recommendation_logs/recommendations_2025-09-16.parquet
-🧾 Loggade 7 simulerade affärer till data/recommendation_logs/simulated_trades_2025-09-16.json
+⚠️ Missing price data for 3 tickers: ERIC-B.ST, TELIA.ST, VOLV-B.ST
+📝 Saved today's recommendations to data/recommendation_logs/recommendations_2025-09-16.parquet
+🧾 Logged 7 simulated trades to data/recommendation_logs/simulated_trades_2025-09-16.json
 
 Report generated: reports/daily_2025-09-16.md
 Generated 47 recommendations
@@ -213,28 +213,28 @@ Top buy recommendations:
 **ROI (Return on Intelligence)** is an advanced quantitative trading system that combines
 Bayesian signal processing, regime detection, and heavy-tail risk modeling...
 
-## Köp-förslag
+## Buy Suggestions
 
 - **TSLA** @ 421.62 — E[r]_1d: +0.14% | E[R]_21d: +3.07% | Pr(↑): 92% | Confidence: 0.59 | σ: 31.03% | Downside VaR_1d: 🟡 2.8% | **Vikt: 0.2%**
-  *Signalbidrag (normaliserade): Trend(0.25), Momentum(0.69), Sentiment(0.06)*
-  *Extremrörelser P[|r| > 2σ]: 6.0%*
+  *Signal contributions (normalised): Trend(0.25), Momentum(0.69), Sentiment(0.06)*
+  *Extreme move probability P[|r| > 2σ]: 6.0%*
 
 - **SAAB-B.ST** @ 517.70 — E[r]_1d: +0.14% | E[R]_21d: +3.05% | Pr(↑): 92% | Confidence: 0.58 | σ: 33.78% | Downside VaR_1d: 🟡 2.7% | **Vikt: 0.3%**
-  *Signalbidrag (normaliserade): Trend(0.28), Momentum(0.66), Sentiment(0.06)*
-  *Extremrörelser P[|r| > 2σ]: 6.2%*
+  *Signal contributions (normalised): Trend(0.28), Momentum(0.66), Sentiment(0.06)*
+  *Extreme move probability P[|r| > 2σ]: 6.2%*
 
-### 📊 Aktuell Marknadsregim: **Unknown** (33% säkerhet)
-Ingen regime detekterad
+### 📊 Current Market Regime: **Unknown** (33% confidence)
+No regime detected
 
 ### 📊 Portfolio Status
-**Portföljvärde:** 100,000 SEK
-**Investerat kapital:** 49,075 SEK (49.1%)
-**Kvarvarande cash:** 50,925 SEK (50.9%)
-**Antal positioner:** 2
+**Portfolio value:** 100,000 SEK
+**Invested capital:** 49,075 SEK (49.1%)
+**Remaining cash:** 50,925 SEK (50.9%)
+**Number of positions:** 2
 
-**Rekommenderade trades:**
-- KÖP TSLA: 0.2% (E[r]: +0.14%, Pr(↑): 92%)
-- KÖP SAAB-B.ST: 0.3% (E[r]: +0.14%, Pr(↑): 92%)
+**Recommended trades:**
+- BUY TSLA: 0.2% (E[r]: +0.14%, Pr(↑): 92%)
+- BUY SAAB-B.ST: 0.3% (E[r]: +0.14%, Pr(↑): 92%)
 ```
 
 ### 📊 Comprehensive Report Features

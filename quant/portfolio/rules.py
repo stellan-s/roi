@@ -7,25 +7,25 @@ from ..risk.analytics import RiskAnalytics, PortfolioRiskProfile
 
 @dataclass
 class PortfolioConstraints:
-    """Portfolio-level constraints och regler"""
-    max_weight_per_stock: float = 0.10          # Max 10% per aktie
-    max_single_regime_exposure: float = 0.85    # Max 85% i samma regim
-    min_regime_diversification: bool = True     # Kräv minst 2 regimer
-    pre_earnings_freeze_days: int = 5           # Ingen handel före earnings
+    """Portfolio-level constraints and rules."""
+    max_weight_per_stock: float = 0.10          # Max 10% per stock
+    max_single_regime_exposure: float = 0.85    # Max 85% in the same regime
+    min_regime_diversification: bool = True     # Require at least 2 regimes
+    pre_earnings_freeze_days: int = 5           # No trading ahead of earnings
     trade_cost_bps: int = 15                    # Transaction costs
-    min_portfolio_positions: int = 3            # Minst 3 aktiva positioner
-    bear_market_allocation: float = 0.60        # Max allokering i bear market
+    min_portfolio_positions: int = 3            # At least 3 active positions
+    bear_market_allocation: float = 0.60        # Max allocation in bear markets
 
 @dataclass
 class PortfolioPosition:
-    """Enskild position i portfolion"""
+    """Single position in the portfolio."""
     ticker: str
-    weight: float                    # Portfolio vikt (0-1)
+    weight: float                    # Portfolio weight (0-1)
     decision: str                    # Buy/Sell/Hold
-    expected_return: float           # E[r] daglig
-    prob_positive: float             # Pr(↑)
-    regime: str                      # Marknadsregim
-    decision_confidence: float       # Beslutssäkerhet
+    expected_return: float           # Daily expected return
+    prob_positive: float             # Probability of a positive return
+    regime: str                      # Market regime
+    decision_confidence: float       # Decision confidence
 
     # Additional attributes for risk management
     uncertainty: float = 0.0         # Signal uncertainty
@@ -36,14 +36,14 @@ class PortfolioPosition:
 
 class PortfolioManager:
     """
-    Portfolio-level management med regime diversification och disciplinmotor
+    Portfolio-level management with regime diversification and discipline rules.
 
-    Ansvarar för:
-    1. Position sizing baserat på risk och confidence
+    Responsible for:
+    1. Position sizing based on risk and confidence
     2. Regime diversification rules
     3. Pre-earnings freeze
-    4. Transaction cost optimization
-    5. Risk budgeting över regimer
+    4. Transaction cost optimisation
+    5. Risk budgeting across regimes
     """
 
     def __init__(self, config: Optional[Dict] = None):
@@ -69,13 +69,13 @@ class PortfolioManager:
 
     def apply_portfolio_rules(self, decisions: pd.DataFrame) -> pd.DataFrame:
         """
-        Applicera portfolio-level regler på Bayesian decisions
+        Apply portfolio-level rules on Bayesian decisions.
 
-        Input: DataFrame med Bayesian beslut
-        Output: DataFrame med portfolio-justerade beslut och vikter
+        Input: DataFrame with Bayesian decisions
+        Output: DataFrame with portfolio-adjusted decisions and weights
         """
 
-        # Bara senaste datum för portfolio construction
+        # Only consider the latest date for portfolio construction
         latest_date = decisions['date'].max()
         latest_decisions = decisions[decisions['date'] == latest_date].copy()
 
@@ -118,13 +118,13 @@ class PortfolioManager:
         else:
             print(f"✅ No duplicates found: {len(latest_decisions)} unique recommendations")
 
-        # Skapa PortfolioPosition objects with all available attributes
+        # Build PortfolioPosition objects with all available attributes
         positions = []
         for _, row in latest_decisions.iterrows():
             regime_value = row['regime'] if 'regime' in row else 'unknown'
             pos = PortfolioPosition(
                 ticker=row['ticker'],
-                weight=0.0,  # Kommer beräknas
+                weight=0.0,  # Calculated later
                 decision=row['decision'],
                 expected_return=row['expected_return'],
                 prob_positive=row['prob_positive'],
@@ -138,15 +138,15 @@ class PortfolioManager:
             )
             positions.append(pos)
 
-        # Applicera portfolio regler
+        # Apply portfolio rules
         adjusted_positions = self._apply_regime_diversification(positions)
         adjusted_positions = self._apply_position_sizing(adjusted_positions)
         adjusted_positions = self._apply_transaction_cost_filter(adjusted_positions)
 
-        # Konvertera tillbaka till DataFrame
+        # Convert back to a DataFrame
         adjusted_df = self._positions_to_dataframe(adjusted_positions, latest_decisions)
 
-        # Mergea med original data (bara latest date uppdaterad)
+        # Merge with original data (only the latest date updated)
         other_dates = decisions[decisions['date'] != latest_date]
         final_result = pd.concat([other_dates, adjusted_df], ignore_index=True)
 
@@ -154,13 +154,13 @@ class PortfolioManager:
 
     def _apply_regime_diversification(self, positions: List[PortfolioPosition]) -> List[PortfolioPosition]:
         """
-        Applicera regime diversification rules
+        Apply regime diversification rules.
         """
 
         if not self.constraints.min_regime_diversification:
             return positions
 
-        # Räkna positions per regim (endast Buy/Sell decisions)
+        # Count positions per regime (only Buy/Sell decisions)
         active_positions = [p for p in positions if p.decision in ['Buy', 'Sell']]
 
         if len(active_positions) == 0:
@@ -171,27 +171,27 @@ class PortfolioManager:
         for pos in active_positions:
             regime_counts[pos.regime] = regime_counts.get(pos.regime, 0) + 1
 
-        # Om alla är i samma regim, reducera exposure
+        # If everything sits in the same regime, reduce exposure
         if len(regime_counts) == 1 and len(active_positions) > 3:
             single_regime = list(regime_counts.keys())[0]
 
-            # KRITISK FIX: Ignorera "unknown" regime för diversification rules
+            # Critical fix: ignore "unknown" regime for diversification rules
             if single_regime == 'unknown':
-                # Bara visa meddelande för extremt många positioner (möjligt problem)
+                # Only show a message for extremely large books (potential issue)
                 if len(active_positions) > 100:
-                    print(f"ℹ️ Skipping regime diversification för unknown regime ({len(active_positions)} positioner)")
+                    print(f"ℹ️ Skipping regime diversification for unknown regime ({len(active_positions)} positions)")
                 return positions
 
-            print(f"⚠️ Regime diversification varning: Alla {len(active_positions)} positioner i {single_regime} regim")
+            print(f"⚠️ Regime diversification warning: All {len(active_positions)} positions in {single_regime} regime")
 
-            # Behåll bara de starkaste signalerna, men säkerställ minimum antal
+            # Keep only the strongest signals, but respect the minimum count
             active_positions.sort(key=lambda p: p.decision_confidence, reverse=True)
             max_positions = max(
                 self.constraints.min_portfolio_positions,
                 int(len(active_positions) * self.constraints.max_single_regime_exposure)
             )
 
-            # Downgrade svagare positioner till Hold, men behåll minst min_positions
+            # Downgrade weaker positions to Hold, but keep at least the minimum
             # Sort active positions by confidence to keep the strongest
             active_positions_sorted = sorted(active_positions, key=lambda p: p.decision_confidence, reverse=True)
             downgrades = 0
@@ -205,31 +205,29 @@ class PortfolioManager:
                     if pos_rank >= max_positions:
                         pos.decision = 'Hold'
                         downgrades += 1
-                        print(f"  Downgraded {pos.ticker} till Hold (regime diversification)")
+                        print(f"  Downgraded {pos.ticker} to Hold (regime diversification)")
 
         return positions
 
     def _apply_position_sizing(self, positions: List[PortfolioPosition]) -> List[PortfolioPosition]:
-        """
-        Beräkna position sizes baserat på expected return, confidence och heavy-tail risk
-        """
+        """Calculate position sizes based on expected return, confidence, and tail risk."""
 
-        # Bara aktiva positioner (Buy/Sell)
+        # Only active positions (Buy/Sell)
         active_buys = [p for p in positions if p.decision == 'Buy']
-        active_sells = [p for p in positions if p.decision == 'Sell']  # För short eller hedge
+        active_sells = [p for p in positions if p.decision == 'Sell']  # For shorts or hedges
 
         if not active_buys:
-            # Ingen köp → alla vikter 0
+            # No buys → zero out weights
             for pos in positions:
                 pos.weight = 0.0
             return positions
 
-        # Kelly-inspirerad position sizing med regime och tail risk adjustment
+        # Kelly-inspired position sizing with regime and tail-risk adjustment
         total_weight_budget = 1.0
         min_position_size = 0.02  # Minimum 2% per position (meaningful size)
         max_positions = int(total_weight_budget / min_position_size)  # Max 50 positions at 2% each
 
-        # Justera budget baserat på regim - check regime consensus, not just first ticker
+        # Adjust budget based on the regime consensus
         if active_buys:
             # Count regime distribution among active buy positions
             regimes = [pos.regime for pos in active_buys]
@@ -239,25 +237,25 @@ class PortfolioManager:
             # Apply bear market allocation if majority of positions are in bear regime
             if bear_ratio > 0.5:  # More than 50% bear regime positions
                 total_weight_budget = self.constraints.bear_market_allocation
-                print(f"🐻 Bear market: Reducerar allokering till {total_weight_budget*100}% ({bear_count}/{len(regimes)} bear positions)")
+                print(f"🐻 Bear market: Reducing allocation to {total_weight_budget*100}% ({bear_count}/{len(regimes)} bear positions)")
                 max_positions = int(total_weight_budget / min_position_size)  # Fewer positions in bear market
 
-        # Risk-adjusted expected returns med tail risk penalty
+        # Risk-adjusted expected returns with a tail-risk penalty
         risk_adjusted_returns = []
         for pos in active_buys:
-            # Justera E[r] med confidence och volatility proxy
+            # Adjust E[r] with confidence and a volatility proxy
             confidence_adj = pos.decision_confidence  # 0-1
             regime_stability = 0.8 if pos.regime != 'neutral' else 0.6  # Regime stability
 
             # Heavy-tail risk adjustment
-            # High tail risk score → reducera position size
+            # High tail risk score → reduce position size
             tail_risk_penalty = 1.0 - (getattr(pos, 'tail_risk_score', 0.0) * 0.3)  # Max 30% reduction
             tail_risk_penalty = max(0.5, tail_risk_penalty)  # Minimum 50% of original size
 
             risk_adj_return = pos.expected_return * confidence_adj * regime_stability * tail_risk_penalty
             risk_adjusted_returns.append(max(0.0001, risk_adj_return))  # Minimum threshold
 
-        # Proportional allocation baserat på risk-adjusted returns
+        # Proportional allocation based on risk-adjusted returns
         total_risk_adj_return = sum(risk_adjusted_returns)
 
         # Sort positions by risk-adjusted return (best first)
@@ -283,12 +281,12 @@ class PortfolioManager:
             else:
                 pos.weight = 0.0
 
-        # Remove positions below minimum threshold
+        # Remove positions below the minimum threshold
         for pos in active_buys:
             if pos.weight < min_position_size:
                 pos.weight = 0.0
 
-        # Normalisera om total weight överstiger budget
+        # Normalise if the total weight exceeds the budget
         total_weight = sum(pos.weight for pos in active_buys if pos.weight > 0)
         if total_weight > total_weight_budget:
             for pos in active_buys:
@@ -300,15 +298,13 @@ class PortfolioManager:
         return positions
 
     def _apply_transaction_cost_filter(self, positions: List[PortfolioPosition]) -> List[PortfolioPosition]:
-        """
-        Filtrera bort trades med för höga transaction costs relativt expected return
-        """
+        """Filter out trades where expected return does not cover transaction costs."""
 
         cost_threshold = self.constraints.trade_cost_bps / 10000.0  # Convert bps to decimal
 
         for pos in positions:
             if pos.decision in ['Buy', 'Sell'] and pos.weight > 0:
-                # Expected return måste överstiga transaction costs
+                # Expected return must exceed transaction costs
                 if abs(pos.expected_return) < cost_threshold * 2:  # 2x safety margin
                     print(f"⚠️ {pos.ticker}: Expected return {pos.expected_return*100:.3f}% < transaction costs {cost_threshold*2*100:.3f}%")
                     pos.decision = 'Hold'
@@ -317,18 +313,18 @@ class PortfolioManager:
         return positions
 
     def _positions_to_dataframe(self, positions: List[PortfolioPosition], original_df: pd.DataFrame) -> pd.DataFrame:
-        """Konvertera PortfolioPosition tillbaka till DataFrame format"""
+        """Convert PortfolioPosition objects back into a DataFrame."""
 
         result_rows = []
 
         for _, orig_row in original_df.iterrows():
-            # Hitta motsvarande position
+            # Find the matching position
             pos = next((p for p in positions if p.ticker == orig_row['ticker']), None)
 
-            # Kopiera original rad
+            # Copy the original row
             new_row = orig_row.copy()
 
-            # Uppdatera med portfolio adjustments
+            # Update with portfolio adjustments
             if pos:
                 new_row['decision'] = pos.decision
                 new_row['portfolio_weight'] = pos.weight
@@ -342,7 +338,7 @@ class PortfolioManager:
         return pd.DataFrame(result_rows)
 
     def get_portfolio_summary(self, decisions: pd.DataFrame) -> Dict:
-        """Generate portfolio-level summary och diagnostics"""
+        """Generate a portfolio-level summary and diagnostics."""
 
         latest_date = decisions['date'].max()
         latest = decisions[decisions['date'] == latest_date]

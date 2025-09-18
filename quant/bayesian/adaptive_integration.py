@@ -112,7 +112,8 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                                tech: pd.DataFrame,
                                senti: pd.DataFrame,
                                prices: Optional[pd.DataFrame] = None,
-                               vix_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                               vix_data: Optional[pd.DataFrame] = None,
+                               metals_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Enhanced Bayesian scoring with adaptive parameters and VIX integration.
         Uses learned parameters instead of hardcoded config values.
@@ -125,8 +126,8 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         adapted_tech = self._apply_adaptive_technical_scaling(tech)
         adapted_senti = self._apply_adaptive_sentiment_scaling(senti)
 
-        # Get base recommendations using adapted signals and VIX
-        recommendations = self.bayesian_score(adapted_tech, adapted_senti, prices, vix_data)
+        # Get base recommendations using adapted signals, VIX, and metals
+        recommendations = self.bayesian_score(adapted_tech, adapted_senti, prices, vix_data, metals_data)
 
         # Apply adaptive regime adjustments
         final_recommendations = self._apply_adaptive_regime_adjustments(recommendations, prices)
@@ -311,7 +312,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
     def get_regime_explanation(self) -> str:
         """Get detailed explanation of current market regime classification."""
-        return getattr(self, 'regime_explanation', 'Ingen regimförklaring tillgänglig.')
+        return getattr(self, 'regime_explanation', 'No regime explanation available.')
 
     def get_risk_budgeting_summary(self, recommendations: pd.DataFrame = None) -> str:
         """Get summary of risk budgeting optimization."""
@@ -398,7 +399,8 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                                tech: pd.DataFrame,
                                senti: pd.DataFrame,
                                prices: Optional[pd.DataFrame] = None,
-                               vix_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                               vix_data: Optional[pd.DataFrame] = None,
+                               metals_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Adaptive version of bayesian_score that uses learned parameters and VIX.
         """
@@ -420,7 +422,8 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                 self.current_regime,
                 self.regime_probabilities,
                 self.regime_diagnostics,
-                vix_data
+                vix_data,
+                metals_data
             )
 
             if self.current_regime:
@@ -431,7 +434,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
             # Equal regime probabilities if no price data
             self.regime_probabilities = {regime: 1/3 for regime in MarketRegime}
             regime_adjustments = {"momentum": 1.0, "trend": 1.0, "sentiment": 1.0}
-            self.regime_explanation = "**Ingen Regim Detekterad**\nIngen prisdata tillgänglig för regimanalys."
+            self.regime_explanation = "**No Regime Detected**\nNo price data available for regime analysis."
 
         # Merge technical and sentiment data
         merged = pd.merge(tech, senti, on='ticker', how='left')
@@ -829,12 +832,9 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         return weights
 
     def _decision_confidence(self, output: SignalOutput) -> float:
-        """
-        Beräkna confidence score för decision (0-1)
-        Högre värde = mer säker på beslut
-        """
+        """Calculate a 0-1 confidence score for the decision."""
 
-        # Distance från neutralitet (0.5 prob)
+        # Distance from neutrality (0.5 probability)
         prob_distance = abs(output.prob_positive - 0.5) * 2  # 0-1 scale
 
         # Expected return magnitude (normalized)
@@ -920,7 +920,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
         This is the old heuristic-based approach.
         """
-        # Base tail risk från volatility proxy (momentum volatility)
+        # Base tail risk from a volatility proxy (momentum volatility)
         momentum_volatility = abs(signals.get(SignalType.MOMENTUM, 0.0))
         base_tail_risk = momentum_volatility * 0.3
 

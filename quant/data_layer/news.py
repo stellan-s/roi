@@ -25,10 +25,10 @@ def fetch_news(feed_urls, cache_dir: str) -> pd.DataFrame:
                         })
                     print(f"✅ Fetched {len(result)} articles from {url}")
                 except concurrent.futures.TimeoutError:
-                    print(f"⏰ Timeout ({timeout_seconds}s) för news feed {url}")
+                    print(f"⏰ Timeout ({timeout_seconds}s) for news feed {url}")
                     return []
         except Exception as e:
-            print(f"❌ Misslyckades hämta news från {url}: {e}")
+            print(f"❌ Failed to fetch news from {url}: {e}")
             return []
         return result
 

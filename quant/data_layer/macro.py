@@ -162,12 +162,167 @@ def fetch_vix(cache_dir: str, lookback_days: int = 500) -> pd.DataFrame:
         ])
 
 
+def fetch_precious_metals_sentiment(cache_dir: str, lookback_days: int = 500,
+                                   gold_symbol: str = "GLD", silver_symbol: str = "SLV") -> pd.DataFrame:
+    """
+    Fetch gold and silver data for market sentiment analysis.
+
+    Args:
+        cache_dir: Directory for caching data
+        lookback_days: Number of days to fetch
+        gold_symbol: Gold ETF symbol (default: GLD)
+        silver_symbol: Silver ETF symbol (default: SLV)
+
+    Returns:
+        DataFrame with precious metals sentiment indicators
+    """
+
+    cache_path = Path(cache_dir) / "macro" / "precious_metals_sentiment.parquet"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Check cache freshness
+    if cache_path.exists():
+        try:
+            cached_data = pd.read_parquet(cache_path)
+            cached_data['date'] = pd.to_datetime(cached_data['date'])
+
+            latest_cached = cached_data['date'].max()
+            today = pd.Timestamp.now().date()
+
+            if latest_cached.date() >= today - timedelta(days=1):
+                print(f"🥇 Using cached precious metals sentiment (latest: {latest_cached.date()})")
+                cutoff_date = today - timedelta(days=lookback_days)
+                recent_data = cached_data[cached_data['date'].dt.date >= cutoff_date]
+                return recent_data
+
+        except Exception as e:
+            print(f"⚠️ Error reading precious metals cache: {e}")
+
+    # Fetch fresh data
+    print("🥇 Fetching gold and silver data for sentiment analysis...")
+
+    try:
+        start_date = (datetime.now() - timedelta(days=lookback_days + 30)).strftime('%Y-%m-%d')
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Fetch both gold and silver in parallel
+            gold_future = executor.submit(
+                yf.download, gold_symbol, start=start_date, auto_adjust=True, progress=False
+            )
+            silver_future = executor.submit(
+                yf.download, silver_symbol, start=start_date, auto_adjust=True, progress=False
+            )
+
+            gold_data = gold_future.result(timeout=30)
+            silver_data = silver_future.result(timeout=30)
+
+        if gold_data.empty or silver_data.empty:
+            raise ValueError("No precious metals data received")
+
+        # Process gold data - handle MultiIndex properly
+        gold_df = gold_data.reset_index()
+        if isinstance(gold_df.columns, pd.MultiIndex):
+            # Extract the 'Close' column specifically for this symbol
+            gold_df = pd.DataFrame({
+                'date': gold_df.index if 'Date' not in gold_df.columns else gold_df['Date'],
+                'gold_close': gold_df[('Close', gold_symbol)]
+            })
+        else:
+            gold_df.columns = [str(col).lower() for col in gold_df.columns]
+            gold_df = gold_df.rename(columns={'close': 'gold_close'})
+
+        # Process silver data - handle MultiIndex properly
+        silver_df = silver_data.reset_index()
+        if isinstance(silver_df.columns, pd.MultiIndex):
+            # Extract the 'Close' column specifically for this symbol
+            silver_df = pd.DataFrame({
+                'date': silver_df.index if 'Date' not in silver_df.columns else silver_df['Date'],
+                'silver_close': silver_df[('Close', silver_symbol)]
+            })
+        else:
+            silver_df.columns = [str(col).lower() for col in silver_df.columns]
+            silver_df = silver_df.rename(columns={'close': 'silver_close'})
+
+        # Merge gold and silver data
+        metals_df = pd.merge(
+            gold_df[['date', 'gold_close']],
+            silver_df[['date', 'silver_close']],
+            on='date', how='inner'
+        )
+
+        # Calculate sentiment indicators
+
+        # 1. Gold momentum (risk-on/risk-off indicator)
+        metals_df = metals_df.copy()  # Ensure we can modify the DataFrame
+        metals_df['gold_return_1d'] = metals_df['gold_close'].pct_change()
+        metals_df['gold_return_5d'] = metals_df['gold_close'].pct_change(5)
+        metals_df['gold_return_20d'] = metals_df['gold_close'].pct_change(20)
+
+        # 2. Silver momentum
+        metals_df['silver_return_1d'] = metals_df['silver_close'].pct_change()
+        metals_df['silver_return_5d'] = metals_df['silver_close'].pct_change(5)
+        metals_df['silver_return_20d'] = metals_df['silver_close'].pct_change(20)
+
+        # 3. Gold/Silver ratio (risk appetite indicator)
+        metals_df['gold_silver_ratio'] = metals_df['gold_close'] / metals_df['silver_close']
+        metals_df['gs_ratio_sma_10'] = metals_df['gold_silver_ratio'].rolling(10).mean()
+        metals_df['gs_ratio_vs_sma'] = metals_df['gold_silver_ratio'] / metals_df['gs_ratio_sma_10'] - 1
+
+        # 4. Precious metals sentiment regime
+        def classify_precious_metals_sentiment(row):
+            gold_20d = row['gold_return_20d']
+            gs_ratio = row['gold_silver_ratio']
+
+            # Risk-off: Gold rising AND high gold/silver ratio
+            if gold_20d > 0.03 and gs_ratio > 85:
+                return 'risk_off_strong'
+            elif gold_20d > 0.01 or gs_ratio > 80:
+                return 'risk_off_mild'
+            # Risk-on: Gold declining AND low gold/silver ratio
+            elif gold_20d < -0.02 and gs_ratio < 75:
+                return 'risk_on_strong'
+            elif gold_20d < -0.005 or gs_ratio < 78:
+                return 'risk_on_mild'
+            else:
+                return 'neutral'
+
+        metals_df['metals_sentiment'] = metals_df.apply(classify_precious_metals_sentiment, axis=1)
+
+        # 5. Correlation with risk assets (inverse correlation = safe haven behavior)
+        metals_df['gold_sma_10'] = metals_df['gold_close'].rolling(10).mean()
+        metals_df['gold_vs_sma'] = metals_df['gold_close'] / metals_df['gold_sma_10'] - 1
+
+        # Clean up
+        metals_df = metals_df.dropna()
+
+        print(f"✅ Fetched {len(metals_df)} precious metals sentiment points from {metals_df['date'].min().date()} to {metals_df['date'].max().date()}")
+
+        # Cache the data
+        metals_df.to_parquet(cache_path, index=False)
+        print(f"💾 Cached precious metals sentiment to {cache_path}")
+
+        # Filter to requested lookback period
+        cutoff_date = datetime.now().date() - timedelta(days=lookback_days)
+        recent_data = metals_df[metals_df['date'].dt.date >= cutoff_date]
+
+        return recent_data
+
+    except Exception as e:
+        print(f"❌ Failed to fetch precious metals data: {e}")
+        # Return empty DataFrame with correct structure
+        return pd.DataFrame(columns=[
+            'date', 'gold_close', 'silver_close', 'gold_return_1d', 'gold_return_5d', 'gold_return_20d',
+            'silver_return_1d', 'silver_return_5d', 'silver_return_20d', 'gold_silver_ratio',
+            'gs_ratio_sma_10', 'gs_ratio_vs_sma', 'metals_sentiment', 'gold_sma_10', 'gold_vs_sma'
+        ])
+
+
 def fetch_macro_indicators(cache_dir: str, lookback_days: int = 500) -> Dict[str, pd.DataFrame]:
     """
     Fetch multiple macro indicators in parallel.
 
     Returns:
-        Dictionary with keys: 'vix', 'usd_sek', 'oil', etc.
+        Dictionary with keys: 'vix', 'precious_metals', 'usd_sek', 'oil', etc.
     """
 
     indicators = {}
@@ -181,6 +336,14 @@ def fetch_macro_indicators(cache_dir: str, lookback_days: int = 500) -> Dict[str
         print(f"✅ VIX: {len(vix_data)} data points")
     else:
         print("❌ VIX: No data available")
+
+    # Add precious metals sentiment
+    metals_data = fetch_precious_metals_sentiment(cache_dir, lookback_days)
+    if not metals_data.empty:
+        indicators['precious_metals'] = metals_data
+        print(f"✅ Precious Metals: {len(metals_data)} data points")
+    else:
+        print("❌ Precious Metals: No data available")
 
     # TODO: Add more indicators (USD/SEK, oil, etc.)
     # indicators['usd_sek'] = fetch_currency('USDSEK=X', cache_dir, lookback_days)
@@ -232,6 +395,59 @@ def get_latest_vix_regime(vix_data: pd.DataFrame) -> Dict:
         'explanation': explanation,
         'momentum_5d': latest.get('vix_momentum_5d', 0),
         'vs_sma_10': latest.get('vix_vs_sma', 0)
+    }
+
+
+def get_latest_precious_metals_sentiment(metals_data: pd.DataFrame) -> Dict:
+    """
+    Get the latest precious metals sentiment information for reporting.
+
+    Returns:
+        Dict with current gold/silver sentiment and market implications
+    """
+
+    if metals_data.empty:
+        return {
+            'gold_level': None,
+            'silver_level': None,
+            'metals_sentiment': 'unknown',
+            'gold_silver_ratio': None,
+            'explanation': 'Precious metals data not available'
+        }
+
+    latest = metals_data.iloc[-1]
+    gold_level = latest['gold_close']
+    silver_level = latest['silver_close']
+    gold_silver_ratio = latest['gold_silver_ratio']
+    metals_sentiment = latest['metals_sentiment']
+
+    # Create explanation
+    sentiment_explanations = {
+        'risk_off_strong': f"Strong flight to gold (GLD: ${gold_level:.1f}, G/S ratio: {gold_silver_ratio:.1f}) - defensive positioning favored",
+        'risk_off_mild': f"Mild safe-haven demand (GLD: ${gold_level:.1f}, G/S ratio: {gold_silver_ratio:.1f}) - cautious sentiment",
+        'neutral': f"Balanced precious metals sentiment (GLD: ${gold_level:.1f}, G/S ratio: {gold_silver_ratio:.1f}) - no clear directional bias",
+        'risk_on_mild': f"Mild risk appetite (GLD: ${gold_level:.1f}, G/S ratio: {gold_silver_ratio:.1f}) - modest risk-on sentiment",
+        'risk_on_strong': f"Strong risk appetite (GLD: ${gold_level:.1f}, G/S ratio: {gold_silver_ratio:.1f}) - growth assets favored"
+    }
+
+    explanation = sentiment_explanations.get(metals_sentiment, f"GLD: ${gold_level:.1f}, SLV: ${silver_level:.1f} - sentiment unknown")
+
+    # Add momentum context
+    gold_20d = latest.get('gold_return_20d', 0)
+    if gold_20d > 0.02:  # 2% gain over 20 days
+        explanation += " (gold rally)"
+    elif gold_20d < -0.02:  # 2% decline over 20 days
+        explanation += " (gold decline)"
+
+    return {
+        'gold_level': gold_level,
+        'silver_level': silver_level,
+        'gold_silver_ratio': gold_silver_ratio,
+        'metals_sentiment': metals_sentiment,
+        'explanation': explanation,
+        'gold_return_20d': latest.get('gold_return_20d', 0),
+        'silver_return_20d': latest.get('silver_return_20d', 0),
+        'gs_ratio_vs_sma': latest.get('gs_ratio_vs_sma', 0)
     }
 
 

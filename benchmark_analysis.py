@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ROI Benchmark Analysis - Snabb utvärdering av systemkvalitet
+ROI Benchmark Analysis - Quick system quality check
 
-Detta script ger dig en översikt av om systemet är "tillräckligt bra"
-genom att mäta key performance indicators och jämföra mot benchmarks.
+This script gives you a view of whether the system is "good enough"
+by measuring key performance indicators and comparing them to benchmarks.
 """
 
 import sys
@@ -14,42 +14,42 @@ from pathlib import Path
 import yaml
 from datetime import datetime, timedelta
 
-# Benchmark-målsättningar för "tillräckligt bra" system
+# Benchmark targets for a "good enough" system
 BENCHMARK_TARGETS = {
     "min_sharpe_ratio": 0.8,          # Minimum Sharpe ratio
     "max_drawdown_threshold": 0.20,   # Max acceptabel drawdown (20%)
     "min_win_rate": 0.50,             # Minimum win rate (50%)
-    "min_annual_return": 0.08,        # Minimum årlig avkastning (8%)
-    "max_uncertainty": 0.40,          # Max genomsnittlig osäkerhet
-    "min_confidence": 0.40,           # Min genomsnittlig confidence
-    "regime_detection_threshold": 0.50, # Min regime confidence
+    "min_annual_return": 0.08,        # Minimum annual return (8%)
+    "max_uncertainty": 0.40,          # Maximum average uncertainty
+    "min_confidence": 0.40,           # Minimum average confidence
+    "regime_detection_threshold": 0.50, # Minimum regime confidence
 }
 
 def analyze_daily_report():
-    """Analysera senaste daily report för signal quality"""
+    """Analyze the latest daily report for signal quality"""
     try:
-        # Hitta senaste rapport
+        # Find the latest report
         reports_dir = Path("reports")
         report_files = list(reports_dir.glob("daily_*.md"))
 
         if not report_files:
-            return None, "Inga daily reports hittade"
+            return None, "No daily reports found"
 
         latest_report = max(report_files, key=lambda f: f.name)
         content = latest_report.read_text(encoding='utf-8')
 
-        # Extrahera metrics från rapporten
+        # Extract key metrics from the report
         metrics = {
             "report_date": latest_report.stem.replace("daily_", ""),
-            "has_buy_recommendations": "## Köp-förslag" in content and "*(Inget)*" not in content,
-            "has_sell_recommendations": "## Sälj-förslag" in content and "*(Inget)*" not in content,
-            "regime_detected": "Unknown" not in content or "33% säkerhet" not in content,
+            "has_buy_recommendations": "## Buy Recommendations" in content and "*(None)*" not in content,
+            "has_sell_recommendations": "## Sell Recommendations" in content and "*(None)*" not in content,
+            "regime_detected": "Unknown" not in content or "33% confidence" not in content,
         }
 
-        # Räkna rekommendationer
-        buy_count = content.count("E[r]_1d:") if "Köp-förslag" in content else 0
-        sell_count = content.count("E[r]_1d:") if "Sälj-förslag" in content else 0
-        hold_count = content.count("⚠️ Osäkerhet över 0.30 hindrar köp")
+        # Count recommendations
+        buy_count = content.count("E[r]_1d:") if "Buy Recommendations" in content else 0
+        sell_count = content.count("E[r]_1d:") if "Sell Recommendations" in content else 0
+        hold_count = content.count("⚠️ Uncertainty above 0.30 blocks buying")
 
         metrics.update({
             "buy_recommendations": buy_count,
@@ -65,9 +65,9 @@ def analyze_daily_report():
         return None, str(e)
 
 def analyze_signal_quality():
-    """Analysera signal-kvalitet från senaste körning"""
+    """Analyze signal quality from the latest run"""
     try:
-        # Kör en enkel analys för att få signal-metrics
+        # Run a lightweight analysis to obtain signal metrics
         from quant.regime.detector import RegimeDetector
         from quant.data_layer.prices import fetch_prices
 
@@ -77,7 +77,7 @@ def analyze_signal_quality():
         with open('quant/config/universe.yaml', 'r') as f:
             uni_cfg = yaml.safe_load(f)
 
-        # Test med subset av tickers för hastighet
+        # Test with a subset of tickers for speed
         test_tickers = uni_cfg['tickers'][:10]
         prices = fetch_prices(test_tickers, 'data', 100)
 
@@ -85,7 +85,7 @@ def analyze_signal_quality():
         detector = RegimeDetector(cfg)
         regime, probabilities, diagnostics = detector.detect_regime(prices)
 
-        # Beräkna regime confidence
+        # Calculate regime confidence
         regime_confidence = max(probabilities.values()) if probabilities else 0.33
 
         metrics = {
@@ -101,20 +101,20 @@ def analyze_signal_quality():
         return None, str(e)
 
 def calculate_benchmark_score(daily_metrics, signal_metrics):
-    """Beräkna overall benchmark score baserat på målsättningar"""
+    """Calculate the overall benchmark score based on the targets"""
 
     score_components = {}
 
-    # 1. Decision Balance (30 poäng)
-    # Perfekt balans = 0, helt obalanserat = 1
+    # 1. Decision Balance (30 points)
+    # Perfect balance = 0, max imbalance = 1
     if daily_metrics and 'decision_balance' in daily_metrics:
         balance_score = max(0, 30 * (1 - daily_metrics['decision_balance']))
         score_components['decision_balance'] = balance_score
     else:
         score_components['decision_balance'] = 0
 
-    # 2. Signal Diversity (20 poäng)
-    # Har systemet både köp/sälj rekommendationer?
+    # 2. Signal Diversity (20 points)
+    # Does the system deliver both buy and sell recommendations?
     if daily_metrics:
         has_buys = daily_metrics.get('has_buy_recommendations', False)
         has_sells = daily_metrics.get('has_sell_recommendations', False)
@@ -122,15 +122,15 @@ def calculate_benchmark_score(daily_metrics, signal_metrics):
         if has_buys and has_sells:
             diversity_score = 20
         elif has_buys or has_sells:
-            diversity_score = 10  # Endast en typ
+            diversity_score = 10  # Only one type
         else:
-            diversity_score = 0   # Inga rekommendationer
+            diversity_score = 0   # No recommendations
 
         score_components['signal_diversity'] = diversity_score
     else:
         score_components['signal_diversity'] = 0
 
-    # 3. Regime Detection Quality (25 poäng)
+    # 3. Regime Detection Quality (25 points)
     if signal_metrics and 'regime_confidence' in signal_metrics:
         regime_conf = signal_metrics['regime_confidence']
         if regime_conf > 0.60:
@@ -143,10 +143,10 @@ def calculate_benchmark_score(daily_metrics, signal_metrics):
     else:
         score_components['regime_detection'] = 0
 
-    # 4. System Stability (25 poäng)
-    # Baserat på om systemet kan köra utan crashes
+    # 4. System Stability (25 points)
+    # Based on whether the system runs without crashes
     if daily_metrics and signal_metrics:
-        stability_score = 25  # Om vi kommit hit utan crash
+        stability_score = 25  # Making it here means no crash occurred
     else:
         stability_score = 0
     score_components['system_stability'] = stability_score
@@ -156,55 +156,55 @@ def calculate_benchmark_score(daily_metrics, signal_metrics):
     return total_score, score_components
 
 def interpret_score(score):
-    """Tolka benchmark score"""
+    """Interpret the benchmark score"""
     if score >= 80:
-        return "EXCELLENT", "Systemet presterar över förväntningar"
+        return "EXCELLENT", "The system is outperforming expectations"
     elif score >= 65:
-        return "GOOD", "Systemet är tillräckligt bra för production"
+        return "GOOD", "The system is good enough for production"
     elif score >= 50:
-        return "ACCEPTABLE", "Systemet fungerar men behöver förbättringar"
+        return "ACCEPTABLE", "The system works but needs improvements"
     elif score >= 30:
-        return "POOR", "Systemet har betydande problem"
+        return "POOR", "The system has significant issues"
     else:
-        return "CRITICAL", "Systemet är inte funktionsdugligt"
+        return "CRITICAL", "The system is not functional"
 
 def generate_recommendations(score, score_components, daily_metrics, signal_metrics):
-    """Generera specifika rekommendationer för förbättringar"""
+    """Generate specific improvement recommendations"""
     recommendations = []
 
     # Decision Balance
     if score_components.get('decision_balance', 0) < 20:
         if daily_metrics and daily_metrics.get('buy_recommendations', 0) == 0:
-            recommendations.append("🎯 Systemet genererar inga köprekommendationer - kontrollera Bayesian thresholds")
+            recommendations.append("🎯 No buy recommendations produced - review Bayesian thresholds")
         elif daily_metrics and daily_metrics.get('sell_recommendations', 0) == 0:
-            recommendations.append("🎯 Systemet genererar inga säljrekommendationer - kontrollera risk management")
+            recommendations.append("🎯 No sell recommendations produced - review risk management configuration")
 
     # Signal Diversity
     if score_components.get('signal_diversity', 0) < 15:
-        recommendations.append("📊 Låg signal-diversitet - överväg att justera decision thresholds i settings.yaml")
+        recommendations.append("📊 Low signal diversity - consider adjusting decision thresholds in settings.yaml")
 
     # Regime Detection
     if score_components.get('regime_detection', 0) < 20:
         if signal_metrics and signal_metrics.get('regime_confidence', 0) < 0.50:
-            recommendations.append("🔍 Svag regime detection - kontrollera market data quality och lookback periods")
+            recommendations.append("🔍 Weak regime detection - review market data quality and lookback periods")
 
     # System Stability
     if score_components.get('system_stability', 0) < 20:
-        recommendations.append("⚠️ Systemstabilitet - kör system_health_check.py för debugging")
+        recommendations.append("⚠️ System stability issue - run system_health_check.py for debugging")
 
-    # Specifika förbättringar baserat på score
+    # Targeted improvements based on score
     if score < 50:
-        recommendations.append("🚨 PRIORITET: Kör 'python system_health_check.py' för grundläggande debugging")
-        recommendations.append("🔧 Överväg att återställa settings.yaml till default-värden")
+        recommendations.append("🚨 PRIORITY: Run 'python system_health_check.py' for baseline debugging")
+        recommendations.append("🔧 Consider resetting settings.yaml to default values")
 
     elif score < 70:
-        recommendations.append("📈 Överväg parameter-tuning med adaptive_main.py för bättre performance")
-        recommendations.append("🎯 Testa olika decision thresholds för mer balanserade rekommendationer")
+        recommendations.append("📈 Consider parameter tuning with adaptive_main.py for better performance")
+        recommendations.append("🎯 Experiment with decision thresholds for more balanced recommendations")
 
     return recommendations
 
 def main():
-    """Kör benchmark analysis"""
+    """Run the benchmark analysis"""
     print("📊 ROI Benchmark Analysis")
     print("=" * 60)
     print("Analyzing system quality against production benchmarks...")
@@ -212,7 +212,7 @@ def main():
 
     start_time = time.time()
 
-    # 1. Analysera daily report
+    # 1. Analyze daily report
     print("📋 Analyzing latest daily report...")
     daily_metrics, daily_error = analyze_daily_report()
 
@@ -222,7 +222,7 @@ def main():
         print(f"   ✅ Report from: {daily_metrics['report_date']}")
         print(f"   📈 Buy/Sell/Hold: {daily_metrics['buy_recommendations']}/{daily_metrics['sell_recommendations']}/{daily_metrics['hold_recommendations']}")
 
-    # 2. Analysera signal quality
+    # 2. Analyze signal quality
     print("\\n🔍 Analyzing signal quality...")
     signal_metrics, signal_error = analyze_signal_quality()
 
@@ -232,13 +232,13 @@ def main():
         print(f"   🎯 Regime: {signal_metrics['regime_detected']} ({signal_metrics['regime_confidence']:.1%} confidence)")
         print(f"   📊 Quality: {signal_metrics['regime_quality']}")
 
-    # 3. Beräkna benchmark score
+    # 3. Calculate benchmark score
     print("\\n🏆 Calculating benchmark score...")
     score, score_components = calculate_benchmark_score(daily_metrics, signal_metrics)
 
     level, description = interpret_score(score)
 
-    # 4. Resultat
+    # 4. Results
     elapsed = time.time() - start_time
     print("\\n" + "=" * 60)
     print(f"📊 BENCHMARK RESULTS ({elapsed:.1f}s)")
@@ -247,13 +247,13 @@ def main():
     print(f"📝 Assessment: {description}")
     print()
 
-    # Detaljerade scores
+    # Detailed scores
     print("📈 Score Breakdown:")
     for component, points in score_components.items():
         component_name = component.replace('_', ' ').title()
         print(f"   {component_name}: {points:.1f} points")
 
-    # Rekommendationer
+    # Recommendations
     print("\\n🎯 RECOMMENDATIONS:")
     recommendations = generate_recommendations(score, score_components, daily_metrics, signal_metrics)
 
@@ -263,7 +263,7 @@ def main():
         for i, rec in enumerate(recommendations, 1):
             print(f"   {i}. {rec}")
 
-    # Nästa steg
+    # Next steps
     print("\\n🚀 NEXT STEPS:")
     if score >= 65:
         print("   ✅ System is production-ready")

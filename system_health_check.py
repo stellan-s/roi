@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ROI System Health Check - Snabb diagnostik av systemets grundfunktioner
+ROI System Health Check - Quick diagnostics of core system functions
 
-Kör denna för att verifitera att alla komponenter fungerar korrekt
-innan du kör fullständiga backtests eller analyser.
+Run this to verify that every component works before executing
+full backtests or analyses.
 """
 
 import sys
@@ -14,14 +14,14 @@ import pandas as pd
 import numpy as np
 
 def print_status(test_name: str, status: str, details: str = ""):
-    """Formaterad status-utskrift"""
+    """Formatted status output"""
     status_symbol = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
     print(f"{status_symbol} {test_name}: {status}")
     if details:
         print(f"   {details}")
 
 def test_config_loading():
-    """Test 1: Konfigurationsfiler laddas korrekt"""
+    """Test 1: Configuration files load correctly"""
     try:
         with open('quant/config/settings.yaml', 'r') as f:
             settings = yaml.safe_load(f)
@@ -29,7 +29,7 @@ def test_config_loading():
         with open('quant/config/universe.yaml', 'r') as f:
             universe = yaml.safe_load(f)
 
-        # Kontrollera nyckelkonfigurationer
+        # Validate key configuration values
         assert 'bayesian' in settings
         assert 'tickers' in universe
         assert len(universe['tickers']) > 0
@@ -39,11 +39,11 @@ def test_config_loading():
         return "FAIL", str(e)
 
 def test_data_layer():
-    """Test 2: Data layer kan hämta data"""
+    """Test 2: Data layer can fetch data"""
     try:
         from quant.data_layer.prices import fetch_prices
 
-        # Testa med en enkel ticker och kort lookback
+        # Test with a small ticker set and short lookback
         test_tickers = ['AAPL', 'TSLA']
         prices = fetch_prices(test_tickers, 'data', 30)
 
@@ -56,7 +56,7 @@ def test_data_layer():
         return "FAIL", str(e)
 
 def test_regime_detection():
-    """Test 3: Regime detection fungerar utan crash"""
+    """Test 3: Regime detection runs without crashing"""
     try:
         from quant.regime.detector import RegimeDetector
         from quant.data_layer.prices import fetch_prices
@@ -70,7 +70,7 @@ def test_regime_detection():
         detector = RegimeDetector(cfg)
         regime, probabilities, diagnostics = detector.detect_regime(prices)
 
-        # Kontrollera att vi får en regime tillbaka
+        # Ensure we receive a regime classification
         assert regime is not None
         assert isinstance(probabilities, dict)
 
@@ -79,7 +79,7 @@ def test_regime_detection():
         return "FAIL", str(e)
 
 def test_bayesian_engine():
-    """Test 4: Bayesian engine kan generera recommendations"""
+    """Test 4: Bayesian engine generates recommendations"""
     try:
         from quant.data_layer.prices import fetch_prices
         from quant.features.technical import compute_technical_features
@@ -89,12 +89,12 @@ def test_bayesian_engine():
         with open('quant/config/settings.yaml', 'r') as f:
             cfg = yaml.safe_load(f)
 
-        # Minimal test med 2 tickers
+        # Minimal test with two tickers
         test_tickers = ['AAPL', 'TSLA']
         prices = fetch_prices(test_tickers, 'data', 100)
 
         # Simplified features
-        tech = compute_technical_features(prices, 20, 50)  # Kortare perioder
+        tech = compute_technical_features(prices, 20, 50)  # Shorter windows
 
         # Empty sentiment for speed
         sentiment = pd.DataFrame(columns=['date', 'ticker', 'sent_score'])
@@ -110,14 +110,14 @@ def test_bayesian_engine():
         return "FAIL", str(e)
 
 def test_portfolio_rules():
-    """Test 5: Portfolio rules appliceras utan infinite loop"""
+    """Test 5: Portfolio rules apply without infinite loops"""
     try:
         from quant.portfolio.rules import PortfolioManager
 
         with open('quant/config/settings.yaml', 'r') as f:
             cfg = yaml.safe_load(f)
 
-        # Skapa dummy recommendations
+        # Create dummy recommendations
         test_data = pd.DataFrame({
             'date': ['2024-01-01'] * 3,
             'ticker': ['AAPL', 'TSLA', 'MSFT'],
@@ -139,12 +139,12 @@ def test_portfolio_rules():
         return "FAIL", str(e)
 
 def test_system_integration():
-    """Test 6: Enkel end-to-end test"""
+    """Test 6: Basic end-to-end check"""
     try:
-        # Test att main.py kan importeras utan crash
+        # Confirm main.py imports without crashing
         import quant.main
 
-        # Test att adaptive_main.py kan importeras
+        # Confirm adaptive_main.py imports successfully
         import quant.adaptive_main
 
         return "PASS", "Main modules import successfully"
@@ -152,13 +152,13 @@ def test_system_integration():
         return "FAIL", str(e)
 
 def main():
-    """Kör alla systemhälso-tester"""
+    """Run all system health tests"""
     print("🔍 ROI System Health Check")
     print("=" * 50)
 
     start_time = time.time()
 
-    # Lista av tester
+    # List of tests
     tests = [
         ("Configuration Loading", test_config_loading),
         ("Data Layer", test_data_layer),
@@ -180,7 +180,7 @@ def main():
             print_status(test_name, "FAIL", f"Unexpected error: {e}")
             results.append((test_name, "FAIL", str(e)))
 
-    # Sammanfattning
+    # Summary
     elapsed = time.time() - start_time
     passed = sum(1 for _, status, _ in results if status == "PASS")
     total = len(results)

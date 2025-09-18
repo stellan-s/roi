@@ -4,7 +4,7 @@ run:
 
 data:
   cache_dir: "data"
-  lookback_days: 100   # Reduced to prevent hanging during debugging
+  lookback_days: 750   # Reduced to prevent hanging during debugging
 
 signals:
   sma_long: 50         # Reduced from 200 to 50 for more responsive trend signal
@@ -14,33 +14,33 @@ signals:
 
 # Bayesian Engine Configuration
 bayesian:
-  time_horizon_days: 21          # Investeringshorisont för E[r] och Pr(↑)
+  time_horizon_days: 21          # Investment horizon for E[r] and Pr(↑)
   decision_thresholds:
-    buy_probability: 0.55        # Köp när Pr(↑) ≥ 55% (more realistic)
-    sell_probability: 0.45       # Sälj när Pr(↑) ≤ 45% (more realistic)
-    min_expected_return: 0.0002  # Minimum 0.02% daglig E[r] för köp (more realistic)
-    max_uncertainty: 0.50        # Max osäkerhet för action (accept more uncertainty)
+    buy_probability: 0.55        # Buy when Pr(↑) ≥ 55%
+    sell_probability: 0.45       # Sell when Pr(↑) ≤ 45%
+    min_expected_return: 0.0002  # Minimum 0.02% daily E[r] for entries
+    max_uncertainty: 0.50        # Maximum uncertainty allowed for action
 
-  # Prior beliefs för signaler (kan justeras baserat på backtest)
+  # Prior beliefs for signals (adjust via backtests)
   priors:
-    trend_effectiveness: 0.62    # SMA trend-following edge (högre)
-    momentum_effectiveness: 0.68 # Momentum är starkast dokumenterat (högre)
-    sentiment_effectiveness: 0.58 # Sentiment är noisier (högre)
+    trend_effectiveness: 0.62    # SMA trend-following edge (raised)
+    momentum_effectiveness: 0.68 # Momentum has the strongest empirical support
+    sentiment_effectiveness: 0.58 # Sentiment is noisier (boosted)
 
-  # Parameter Learning (ersätter hardkodade värden med data-drivna estimat)
+  # Parameter learning (replaces hardcoded values with data-driven estimates)
   parameter_learning:
-    enabled: true                 # Aktivera adaptiv parameter-estimering
-    calibration_lookback: 1000    # Dagar av data för parameter-kalibrering
-    confidence_level: 0.95        # Konfidensnivå för parameter-estimat
-    min_observations: 100         # Minimum datapunkter för tillförlitliga estimat
+    enabled: true                 # Enable adaptive parameter estimation
+    calibration_lookback: 1000    # Days of data for parameter calibration
+    confidence_level: 0.95        # Confidence level for parameter estimates
+    min_observations: 100         # Minimum data points for reliable estimates
 
-    # Signal-normalisering lärande
-    sentiment_normalization: "percentile_based"  # Använd data-distribution vs hardkodad /2.0
-    momentum_scaling: "distribution_based"       # Skala baserat på faktisk momentum-range
+    # Signal normalisation learning
+    sentiment_normalization: "percentile_based"  # Use distribution rather than fixed /2.0
+    momentum_scaling: "distribution_based"       # Scale using actual momentum range
 
-    # Regim-justering lärande
-    regime_effectiveness_learning: true          # Lär regim-multiplikatorer från data
-    bootstrap_iterations: 500                    # Bootstrap-sampel för konfidensintervall
+    # Regime adjustment learning
+    regime_effectiveness_learning: true          # Learn regime multipliers from data
+    bootstrap_iterations: 500                    # Bootstrap samples for confidence intervals
 
 # Regime Detection Configuration
 regime_detection:
@@ -50,14 +50,14 @@ regime_detection:
   trend_window: 50              # Increased from 20 to 50 for better trends
 
   # Regime transition probabilities (sticky regimes)
-  transition_persistence: 0.80  # Sannolikhet att stanna i samma regim
+  transition_persistence: 0.80  # Probability of remaining in the same regime
 
   # Regime classification thresholds (less aggressive)
   thresholds:
-    volatility_low: 0.12        # 12% årlig vol = låg (lowered from 0.15)
-    volatility_high: 0.30       # 30% årlig vol = hög (raised from 0.25)
-    return_bull: 0.003          # 0.3% daglig för bull (raised from 0.002)
-    return_bear: -0.003         # -0.3% daglig för bear (lowered from -0.002)
+    volatility_low: 0.12        # 12% annual vol = low (lowered from 0.15)
+    volatility_high: 0.30       # 30% annual vol = high (raised from 0.25)
+    return_bull: 0.003          # 0.3% daily for bull (raised from 0.002)
+    return_bear: -0.003         # -0.3% daily for bear (lowered from -0.002)
     drawdown_bear: -0.15        # -15% drawdown → bear (lowered from -0.10)
 
   # VIX Integration for Global Market Context
@@ -66,6 +66,38 @@ regime_detection:
     influence_weight: 0.6       # Base VIX influence (0.0-1.0, default 0.4 was too weak)
     override_threshold: 18.0    # VIX level below which to override local bear signals
     override_strength: 0.8      # How much to boost bull/reduce bear when overriding (0.0-1.0)
+
+  # Precious Metals Market Sentiment Integration
+  precious_metals_sentiment:
+    enabled: true               # Use gold/silver as market sentiment indicators
+    influence_weight: 0.3       # Precious metals influence on regime detection (0.0-1.0)
+    gold_symbol: "GLD"         # Gold ETF for sentiment analysis
+    silver_symbol: "SLV"       # Silver ETF for sentiment analysis
+
+    # Gold sentiment thresholds and multipliers
+    gold_momentum_window: 20    # Days for gold trend analysis
+    risk_on_threshold: -0.02    # Gold declining 2%+ = risk-on sentiment
+    risk_off_threshold: 0.03    # Gold rising 3%+ = risk-off sentiment
+
+    # Silver ratio analysis (gold/silver ratio)
+    gold_silver_ratio_window: 10  # Days for ratio trend analysis
+    high_ratio_threshold: 85      # High ratio = flight to gold (risk-off)
+    low_ratio_threshold: 75       # Low ratio = risk appetite (risk-on)
+
+    # Sentiment signal adjustments based on precious metals
+    sentiment_multipliers:
+      risk_on_gold:               # When gold declining (risk-on)
+        sentiment_boost: 1.2      # Amplify positive sentiment signals
+        momentum_boost: 1.1       # Slight momentum boost
+        trend_penalty: 0.9        # Slight trend penalty (mean reversion)
+      risk_off_gold:              # When gold rising (risk-off)
+        sentiment_penalty: 0.8    # Dampen sentiment signals
+        momentum_penalty: 0.9     # Reduce momentum signals
+        trend_boost: 1.1          # Boost trend following
+      neutral_gold:               # Sideways gold movement
+        sentiment_neutral: 1.0    # No adjustment
+        momentum_neutral: 1.0     # No adjustment
+        trend_neutral: 1.0        # No adjustment
 
     # VIX regime score multipliers (how much each VIX regime affects market regime scores)
     regime_multipliers:
@@ -95,19 +127,19 @@ regime_detection:
 
 policy:
   max_weight: 0.10             # Max position size per aktie
-  pre_earnings_freeze_days: 5  # Disciplinmotor: ingen handel före earnings
-  trade_cost_bps: 3           # Transaction costs (lägre för mer trades och backtesting)
+  pre_earnings_freeze_days: 5  # Disciplinary rule: no trades before earnings
+  trade_cost_bps: 3           # Transaction costs (lower to encourage trading/backtests)
 
-  # Portfolio-nivå regler
-  max_single_regime_exposure: 0.85  # Max 85% i samma regim (mer tillåtande)
-  regime_diversification: true      # Kräv regim-diversifiering
-  min_portfolio_positions: 3        # Minst 3 aktiva positioner
-  bear_market_allocation: 0.85      # Max 85% allokering i bear market (increased from 60%)
+  # Portfolio-level rules
+  max_single_regime_exposure: 0.85  # Max 85% in the same regime (more permissive)
+  regime_diversification: true      # Require regime diversification
+  min_portfolio_positions: 3        # Minimum 3 active positions
+  bear_market_allocation: 0.85      # Max 85% allocation in bear markets (increased from 60%)
 
   # Heavy-tail risk controls
-  max_tail_risk_allocation: 0.30    # Max 30% i högrisk-positioner (tail_risk > 0.7)
-  tail_risk_position_penalty: 0.30  # Max 30% reduction för high tail risk
-  min_tail_risk_adjusted_weight: 0.5 # Minimum 50% av ursprunglig vikt efter tail penalty
+  max_tail_risk_allocation: 0.30    # Max 30% in high-risk positions (tail_risk > 0.7)
+  tail_risk_position_penalty: 0.30  # Max 30% reduction for high tail risk
+  min_tail_risk_adjusted_weight: 0.5 # Minimum 50% of original weight after tail penalty
 
 # Risk Budgeting Portfolio Optimization
 risk_budgeting:
@@ -133,53 +165,53 @@ risk_budgeting:
   target_portfolio_volatility: 0.15   # Target 15% annual volatility
   volatility_penalty_factor: 2.0      # Penalize high-vol positions
 
-# Statistisk Tail Risk Analys (NY: ersätter heuristisk tail risk)
+# Statistical Tail Risk Analysis (replaces heuristic tail risk)
 tail_risk:
   enabled: true
   calculation_method: "statistical"       # "statistical" vs "heuristic" (legacy)
 
-  # Huvudmått: P[avkastning < -2σ] (nedsidesrisk)
+  # Primary metric: P[return < -2σ] (downside risk)
   downside_tail_risk:
     enabled: true
-    threshold_sigma: -2.0                 # -2σ tröskelvärde för nedsidesrisk
+    threshold_sigma: -2.0                 # -2σ threshold for downside risk
     display_thresholds:
-      low: 0.025                          # 2.5% = grön 🟢
-      high: 0.05                          # 5.0% = röd 🔴 (gul däremellan)
+      low: 0.025                          # 2.5% = green 🟢
+      high: 0.05                          # 5.0% = red 🔴 (yellow between)
 
-  # Sekundmått: P[|avkastning| > 2σ] (extremrörelser)
+  # Secondary metric: P[|return| > 2σ] (extreme moves)
   extreme_move_probability:
     enabled: true
-    threshold_sigma: 2.0                  # ±2σ tröskelvärde för extremrörelser
+    threshold_sigma: 2.0                  # ±2σ threshold for extreme moves
     display_thresholds:
-      low: 0.046                          # 4.6% = normalfördelning baseline
-      high: 0.10                          # 10% = oroväckande nivå
+      low: 0.046                          # 4.6% = normal distribution baseline
+      high: 0.10                          # 10% = concerning level
 
-  # Fördelningsanpassning
+  # Distribution fitting
   distribution_fitting:
-    test_normality: true                  # Använd Jarque-Bera test
-    prefer_student_t: true                # Anpassa Student-t för heavy tails
-    min_observations: 100                 # Minimum data för tillförlitlig anpassning
-    fallback_distribution: "empirical"    # När parametrisk anpassning misslyckas
+    test_normality: true                  # Use the Jarque-Bera test
+    prefer_student_t: true                # Fit Student-t for heavy tails
+    min_observations: 100                 # Minimum data for reliable fitting
+    fallback_distribution: "empirical"    # When parametric fitting fails
 
-  # Signal- och regim-justeringar
+  # Signal and regime adjustments
   adjustments:
-    momentum_factor: 0.2                  # Hur mycket momentum påverkar tail risk
-    sentiment_factor: 0.15                # Hur mycket sentiment påverkar tail risk
+    momentum_factor: 0.2                  # Momentum influence on tail risk
+    sentiment_factor: 0.15                # Sentiment influence on tail risk
     regime_multipliers:
-      bull: 0.8                          # Lägre tail risk i bullmarknader
-      bear: 1.4                          # Högre tail risk i bearmarknader
+      bull: 0.8                          # Lower tail risk in bull markets
+      bear: 1.4                          # Higher tail risk in bear markets
       neutral: 1.0                       # Baseline tail risk
 
-# Heavy-tail Risk Modeling Configuration (legacy - för kompatibilitet)
+# Heavy-tail Risk Modeling Configuration (legacy - compatibility)
 risk_modeling:
   enabled: true
   confidence_levels: [0.95, 0.99, 0.999]  # VaR confidence levels
   time_horizons_days: [21, 63, 252]       # 1m, 3m, 1y analysis
   monte_carlo_simulations: 10000          # MC simulation size
   evt_threshold_percentile: 0.95          # EVT tail threshold
-  min_observations_for_tail_fit: 30       # Minimum data points för Student-t fitting
+  min_observations_for_tail_fit: 30       # Minimum data points for Student-t fitting
 
-  # Legacy tail risk score thresholds för visualization
+  # Legacy tail-risk score thresholds for visualisation
   tail_risk_thresholds:
     low: 0.4        # Green 🟢 below this
     high: 0.7       # Red 🔴 above this, Yellow 🟡 between
@@ -189,7 +221,7 @@ risk_analytics:
   stress_scenarios: ["black_monday", "covid_crash", "regime_shift"]
   risk_free_rate: 0.02                    # 2% annual risk-free rate
   target_portfolio_volatility: 0.15       # 15% target vol
-  tail_risk_penalty: 0.02                 # Extra penalty för heavy tails
+  tail_risk_penalty: 0.02                 # Additional penalty for heavy tails
 
 # Stock-Specific Factor Profile System
 stock_factor_profiles:
@@ -219,7 +251,7 @@ stock_factor_profiles:
 
     swedish_industrials:
       description: "Swedish industrial/cyclical companies"
-      stocks: ["VOLV-B.ST", "ATCO-A.ST", "ATCO-B.ST", "SAND.ST", "SKF-B.ST", "ABB.ST", "ALFA.ST", "EPI-A.ST"]
+      stocks: ["VOLV-B.ST", "ATCO-A.ST", "ATCO-B.ST", "SAND.ST", "SKF-B.ST", "ABB.ST", "ALFA.ST", "EPI-A.ST", "SAAB-B.ST"]
       factor_weights:
         momentum: 0.6           # Moderate momentum sensitivity
         sentiment: 0.5          # Less news-driven, more fundamental

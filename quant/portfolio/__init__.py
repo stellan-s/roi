@@ -1,2 +1,2 @@
 # Portfolio Management Module
-# Portfolio-level regler för position sizing, regime diversification, disciplinmotor
+# Portfolio-level rules for position sizing, regime diversification, and discipline engine

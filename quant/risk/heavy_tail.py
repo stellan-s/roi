@@ -7,15 +7,15 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class TailRiskMeasure(Enum):
-    """Olika tail risk mått"""
-    VALUE_AT_RISK = "var"           # VaR på given confidence level
+    """Different tail risk measures."""
+    VALUE_AT_RISK = "var"           # VaR at the given confidence level
     CONDITIONAL_VAR = "cvar"        # Expected Shortfall / CVaR
-    EXTREME_DRAWDOWN = "max_dd"     # Maximum förväntad drawdown
-    TAIL_EXPECTATION = "tail_exp"   # Expected return i tail
+    EXTREME_DRAWDOWN = "max_dd"     # Maximum expected drawdown
+    TAIL_EXPECTATION = "tail_exp"   # Expected return in the tail
 
 @dataclass
 class TailRiskMetrics:
-    """Tail risk metrics för en given tidshorisont"""
+    """Tail risk metrics for a given time horizon."""
     confidence_level: float         # 95%, 99%, 99.9%
     time_horizon_days: int         # 21, 63, 252 days
 
@@ -29,8 +29,8 @@ class TailRiskMetrics:
     evt_return_level: float        # Expected extreme return level
 
     # Distribution parameters
-    degrees_of_freedom: float      # Estimated DoF för Student-t
-    tail_index: float              # Heavy-tail index från EVT
+    degrees_of_freedom: float      # Estimated DoF for Student-t
+    tail_index: float              # Heavy-tail index from EVT
 
     # Interpretations
     tail_risk_multiplier: float    # Heavy-tail risk vs normal (t_var/normal_var)
@@ -38,7 +38,7 @@ class TailRiskMetrics:
 
 @dataclass
 class MonteCarloResults:
-    """Monte Carlo simulation results för olika outcome scenarios"""
+    """Monte Carlo simulation results for multiple outcome scenarios."""
     n_simulations: int
     time_horizon_months: int
 
@@ -68,17 +68,17 @@ class MonteCarloResults:
 
 class HeavyTailRiskModel:
     """
-    Heavy-tail risk modeling med Student-t och EVT
+    Heavy-tail risk modelling with Student-t and EVT.
 
-    Implementerar:
-    1. Student-t distribution fitting för heavy-tail modeling
-    2. Extreme Value Theory (EVT) för tail risk estimation
-    3. Monte Carlo simulation med heavy-tail properties
-    4. Realistic risk measures vs naive normal assumptions
+    Implements:
+    1. Student-t distribution fitting for heavy-tail modelling
+    2. Extreme Value Theory (EVT) for tail risk estimation
+    3. Monte Carlo simulation with heavy-tail properties
+    4. Realistic risk measures versus naive normal assumptions
     """
 
     def __init__(self, config: Optional[Dict] = None):
-        # Konfigurerbare parametrar
+        # Configurable parameters
         if config and 'risk_modeling' in config:
             risk_config = config['risk_modeling']
             self.confidence_levels = risk_config.get('confidence_levels', [0.95, 0.99, 0.999])
@@ -97,22 +97,22 @@ class HeavyTailRiskModel:
 
     def fit_heavy_tail_distribution(self, returns: pd.Series) -> Dict:
         """
-        Fit Student-t distribution till historical returns
+        Fit a Student-t distribution to historical returns.
 
         Args:
             returns: Daily returns series
 
         Returns:
-            Dictionary med fitted parameters
+            Dictionary with fitted parameters
         """
 
-        # Clean returns (remove extreme outliers för robust fitting)
+        # Clean returns (remove extreme outliers for robust fitting)
         clean_returns = returns.dropna()
 
         if len(clean_returns) < 30:
-            raise ValueError("För få observationer för heavy-tail fitting (behöver ≥30)")
+            raise ValueError("Too few observations for heavy-tail fitting (need ≥30)")
 
-        # Remove extreme outliers (>6 sigma) som kan vara data errors
+        # Remove extreme outliers (>6 sigma) that are likely data errors
         mean_ret = clean_returns.mean()
         std_ret = clean_returns.std()
         clean_returns = clean_returns[
@@ -120,14 +120,14 @@ class HeavyTailRiskModel:
             (clean_returns <= mean_ret + 6*std_ret)
         ]
 
-        # Method of moments estimation för Student-t
-        # Använder robust estimators
+        # Method of moments estimation for Student-t
+        # Uses robust estimators
         sample_mean = clean_returns.mean()
         sample_var = clean_returns.var()
         sample_kurtosis = clean_returns.kurtosis()
 
-        # Estimate degrees of freedom från excess kurtosis
-        # För Student-t: excess_kurtosis = 6/(ν-4) där ν = degrees of freedom
+        # Estimate degrees of freedom from excess kurtosis
+        # For Student-t: excess_kurtosis = 6/(ν-4) where ν = degrees of freedom
         if sample_kurtosis > 0.5:  # Significant heavy tails
             # Solve: sample_kurtosis = 6/(ν-4) for ν
             estimated_dof = 4 + 6/sample_kurtosis
@@ -135,8 +135,8 @@ class HeavyTailRiskModel:
         else:
             estimated_dof = 30  # Close to normal
 
-        # Scale parameter för Student-t
-        # Var = σ²ν/(ν-2) så σ² = Var(ν-2)/ν
+        # Scale parameter for Student-t
+        # Var = σ²ν/(ν-2) so σ² = Var(ν-2)/ν
         if estimated_dof > 2:
             scale_squared = sample_var * (estimated_dof - 2) / estimated_dof
             scale_param = np.sqrt(max(scale_squared, 1e-8))
@@ -157,8 +157,8 @@ class HeavyTailRiskModel:
 
     def fit_extreme_value_theory(self, returns: pd.Series, threshold_percentile: float = None) -> Dict:
         """
-        Fit Generalized Pareto Distribution (GPD) till tail extremes
-        Använd peaks-over-threshold approach
+        Fit a Generalized Pareto Distribution (GPD) to tail extremes
+        using a peaks-over-threshold approach.
         """
 
         if threshold_percentile is None:
@@ -166,15 +166,15 @@ class HeavyTailRiskModel:
 
         clean_returns = returns.dropna()
 
-        # Define threshold för extremes (både positive och negative tails)
+        # Define thresholds for extremes (both positive and negative tails)
         threshold_high = clean_returns.quantile(threshold_percentile)
         threshold_low = clean_returns.quantile(1 - threshold_percentile)
 
-        # Extract exceedances över thresholds
+        # Extract exceedances over the thresholds
         high_exceedances = clean_returns[clean_returns > threshold_high] - threshold_high
         low_exceedances = threshold_low - clean_returns[clean_returns < threshold_low]
 
-        # Fit GPD till både high och low tails
+        # Fit GPD to both high and low tails
         evt_params = {}
 
         for tail_name, exceedances, threshold in [
@@ -182,7 +182,7 @@ class HeavyTailRiskModel:
             ('lower_tail', low_exceedances, threshold_low)
         ]:
 
-            if len(exceedances) < 10:  # För få extreme events
+            if len(exceedances) < 10:  # Too few extreme events
                 evt_params[tail_name] = {
                     'shape': 0.1,  # Mild heavy tail default
                     'scale': exceedances.std() if len(exceedances) > 0 else 0.01,
@@ -192,12 +192,12 @@ class HeavyTailRiskModel:
                 }
                 continue
 
-            # Method of moments för GPD estimation
+            # Method of moments for GPD estimation
             sample_mean = exceedances.mean()
             sample_var = exceedances.var()
 
             # GPD: E[X] = β/(1-ξ), Var[X] = β²/((1-ξ)²(1-2ξ))
-            # Solve för ξ (shape) och β (scale)
+            # Solve for ξ (shape) and β (scale)
             if sample_var > 0 and sample_mean > 0:
                 # Moment ratio method
                 gamma = sample_mean**2 / sample_var
@@ -209,7 +209,7 @@ class HeavyTailRiskModel:
                     shape_xi = 0.1  # Mild heavy tail
                     scale_beta = sample_mean * 0.9
 
-                # Bound parameters för stability
+                # Bound parameters for stability
                 shape_xi = max(-0.5, min(shape_xi, 0.5))
                 scale_beta = max(scale_beta, 1e-6)
             else:
@@ -233,7 +233,7 @@ class HeavyTailRiskModel:
                                    confidence_level: float = 0.95,
                                    time_horizon_days: int = 21) -> TailRiskMetrics:
         """
-        Beräkna comprehensive tail risk metrics
+        Calculate comprehensive tail risk metrics.
         """
 
         # Fit distributions
@@ -245,25 +245,25 @@ class HeavyTailRiskModel:
         sigma = student_t_params['scale']
         dof = student_t_params['degrees_of_freedom']
 
-        # Scale för time horizon (assume i.i.d. returns)
+        # Scale for the time horizon (assumes i.i.d. returns)
         horizon_mu = mu * time_horizon_days
         horizon_sigma = sigma * np.sqrt(time_horizon_days)
 
         # VaR calculations
         alpha = 1 - confidence_level
 
-        # Normal VaR (för comparison)
+        # Normal VaR (for comparison)
         from math import sqrt
         var_normal = horizon_mu + horizon_sigma * self._normal_ppf(alpha)
 
         # Student-t VaR
         var_student_t = horizon_mu + horizon_sigma * self._student_t_ppf(alpha, dof)
 
-        # CVaR (Expected Shortfall) för Student-t
-        # CVaR = E[X | X ≤ VaR] för lower tail
+        # CVaR (Expected Shortfall) for Student-t
+        # CVaR = E[X | X ≤ VaR] for the lower tail
         cvar_student_t = self._calculate_cvar_student_t(horizon_mu, horizon_sigma, dof, alpha)
 
-        # EVT-based VaR (focus on lower tail för loss)
+        # EVT-based VaR (focus on the lower tail for losses)
         evt_var = self._calculate_evt_var(returns, evt_params, confidence_level, time_horizon_days)
 
         # EVT return level (expected extreme event)
@@ -297,12 +297,12 @@ class HeavyTailRiskModel:
                               time_horizon_months: int = 12,
                               n_simulations: int = None) -> MonteCarloResults:
         """
-        Monte Carlo simulation med heavy-tail Student-t distribution
+        Monte Carlo simulation using a heavy-tail Student-t distribution.
 
         Args:
-            expected_return: Årlig förväntad return
-            volatility: Årlig volatilitet
-            tail_parameters: Student-t parameters från fitting
+            expected_return: Annual expected return
+            volatility: Annual volatility
+            tail_parameters: Student-t parameters from fitting
             time_horizon_months: Simulation horizon
             n_simulations: Number of paths
         """
@@ -310,21 +310,21 @@ class HeavyTailRiskModel:
         if n_simulations is None:
             n_simulations = self.mc_simulations
 
-        # Convert till monthly parameters
+        # Convert to monthly parameters
         monthly_return = expected_return / 12
         monthly_vol = volatility / np.sqrt(12)
         dof = tail_parameters.get('degrees_of_freedom', 10)
 
         # Generate heavy-tail random returns
-        np.random.seed(42)  # För reproducerbarhet
+        np.random.seed(42)  # For reproducibility
 
         # Student-t innovations
         t_innovations = np.random.standard_t(dof, size=(n_simulations, time_horizon_months))
 
-        # Scale och center
+        # Scale and centre
         monthly_returns = monthly_return + monthly_vol * t_innovations
 
-        # Compound returns över horizon
+        # Compound returns over the horizon
         cumulative_returns = np.prod(1 + monthly_returns, axis=1) - 1
 
         # Calculate probability metrics
@@ -342,7 +342,7 @@ class HeavyTailRiskModel:
         median_return = np.median(cumulative_returns)
         std_return = np.std(cumulative_returns)
 
-        # Calculate skewness och kurtosis manually (avoid scipy dependency)
+        # Calculate skewness and kurtosis manually (avoid SciPy dependency)
         skewness = np.mean(((cumulative_returns - mean_return) / std_return)**3)
         kurtosis = np.mean(((cumulative_returns - mean_return) / std_return)**4) - 3  # Excess kurtosis
 
@@ -370,9 +370,9 @@ class HeavyTailRiskModel:
             percentile_99=percentiles[3]
         )
 
-    # Helper methods för statistical functions (avoid scipy dependency)
+    # Helper methods for statistical functions (avoid SciPy dependency)
     def _normal_ppf(self, p: float) -> float:
-        """Approximation av normal percent point function (quantile)"""
+        """Approximate the normal percent point function (quantile)."""
         # Beasley-Springer-Moro approximation
         if p <= 0 or p >= 1:
             return 0.0
@@ -399,12 +399,12 @@ class HeavyTailRiskModel:
         return sign * (t - numerator/denominator)
 
     def _student_t_ppf(self, p: float, dof: float) -> float:
-        """Approximation av Student-t percent point function"""
+        """Approximate the Student-t percent point function."""
         # For high DoF, approach normal
         if dof >= 30:
             return self._normal_ppf(p)
 
-        # Simple approximation för Student-t quantiles
+        # Simple approximation for Student-t quantiles
         z = self._normal_ppf(p)
 
         # Cornish-Fisher expansion approximation
@@ -413,18 +413,18 @@ class HeavyTailRiskModel:
         return z + correction
 
     def _student_t_cdf(self, x: float, mu: float, sigma: float, dof: float) -> float:
-        """Approximation av Student-t CDF"""
+        """Approximate the Student-t cumulative distribution function."""
         standardized = (x - mu) / sigma
 
-        # För high DoF, use normal approximation
+        # For high DoF, use the normal approximation
         if dof >= 30:
             return self._normal_cdf(standardized)
 
-        # Simplified approximation för Student-t CDF
-        # Use normal CDF med correction
+        # Simplified approximation for the Student-t CDF
+        # Use the normal CDF with a correction
         normal_cdf = self._normal_cdf(standardized)
 
-        # Apply correction baserat på degrees of freedom
+        # Apply correction based on degrees of freedom
         if abs(standardized) < 3:  # Normal range
             return normal_cdf
         else:  # Tail region - heavier tails
@@ -434,8 +434,8 @@ class HeavyTailRiskModel:
                 return 1 - (1 - normal_cdf) * (1 + 1/dof)  # Heavier right tail
 
     def _normal_cdf(self, x: float) -> float:
-        """Approximation av normal CDF"""
-        # Abramowitz och Stegun approximation
+        """Approximate the normal cumulative distribution function."""
+        # Abramowitz and Stegun approximation
         sign = 1 if x >= 0 else -1
         x = abs(x)
 
@@ -449,11 +449,11 @@ class HeavyTailRiskModel:
         return 0.5 * (1.0 + sign * y)
 
     def _calculate_cvar_student_t(self, mu: float, sigma: float, dof: float, alpha: float) -> float:
-        """Calculate Conditional VaR för Student-t distribution"""
+        """Calculate Conditional VaR for a Student-t distribution."""
         var = mu + sigma * self._student_t_ppf(alpha, dof)
 
-        # CVaR approximation för Student-t
-        # Simplified formula baserat på VaR
+        # CVaR approximation for Student-t
+        # Simplified formula based on VaR
         tail_expectation_ratio = (dof + var**2/sigma**2) / ((dof - 1) * (1 - alpha))
         cvar = var * tail_expectation_ratio
 
@@ -481,11 +481,11 @@ class HeavyTailRiskModel:
 
         evt_var = threshold - evt_quantile
 
-        # Scale för time horizon
+        # Scale for the time horizon
         return evt_var * np.sqrt(horizon)
 
     def _calculate_evt_return_level(self, evt_params: Dict, horizon: int) -> float:
-        """Calculate expected return level från EVT"""
+        """Calculate expected return level from EVT."""
 
         upper_tail = evt_params.get('upper_tail', {})
         if not upper_tail:
@@ -495,7 +495,7 @@ class HeavyTailRiskModel:
         shape = upper_tail['shape']
         scale = upper_tail['scale']
 
-        # Expected return level för extreme positive events
+        # Expected return level for extreme positive events
         if shape < 1:
             expected_excess = scale / (1 - shape)
             return_level = threshold + expected_excess

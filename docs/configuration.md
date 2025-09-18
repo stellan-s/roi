@@ -124,7 +124,7 @@ tail_risk:
       low: 0.025                          # 2.5% = green 🟢
       high: 0.05                          # 5.0% = red 🔴 (yellow between)
 
-  # Secondary measure: P[|return| > 2σ] (extremrörelser)
+  # Secondary measure: P[|return| > 2σ] (extreme moves)
   extreme_move_probability:
     enabled: true
     threshold_sigma: 2.0                  # ±2σ threshold for extreme moves

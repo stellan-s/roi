@@ -7,75 +7,75 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class MarketRegime(Enum):
-    """Marknadsregimer med tydliga definitioner"""
-    BULL = "bull"       # Uppåtgående trend, låg volatilitet, positiv sentiment
-    BEAR = "bear"       # Nedåtgående trend, hög volatilitet, negativ sentiment
-    NEUTRAL = "neutral" # Sidledes trend, måttlig volatilitet, blandad sentiment
+    """Market regimes with clear economic definitions."""
+    BULL = "bull"       # Upward trend, low volatility, positive sentiment
+    BEAR = "bear"       # Downward trend, high volatility, negative sentiment
+    NEUTRAL = "neutral" # Sideways trend, moderate volatility, mixed sentiment
 
 @dataclass
 class RegimeCharacteristics:
-    """Karakteristika för varje marknadsregim"""
+    """Characteristics for each market regime."""
     name: str
     description: str
-    typical_return_range: Tuple[float, float]  # Daglig return range
-    volatility_level: str                      # Låg/Måttlig/Hög
-    momentum_behavior: str                     # Beskrivning av momentum
-    sentiment_bias: str                        # Sentiment-karakteristik
-    signal_adjustments: Dict[str, float]       # Multipliers för signaler
+    typical_return_range: Tuple[float, float]  # Daily return range
+    volatility_level: str                      # Low/Moderate/High
+    momentum_behavior: str                     # Description of momentum behaviour
+    sentiment_bias: str                        # Sentiment archetype
+    signal_adjustments: Dict[str, float]       # Multipliers for signals
 
-# Regime definitioner baserat på empirisk finansforskning
+# Regime definitions based on empirical finance research
 REGIME_DEFINITIONS = {
     MarketRegime.BULL: RegimeCharacteristics(
         name="Bull Market",
-        description="Stark uppåtgående trend med låg volatilitet och optimism",
-        typical_return_range=(0.001, 0.008),  # 0.1% - 0.8% daglig
-        volatility_level="Låg",
-        momentum_behavior="Stark persistens - momentum fortsätter längre",
-        sentiment_bias="Positivt bias - nyheter tolkas optimistiskt",
+        description="Strong upward trend with low volatility and optimism",
+        typical_return_range=(0.001, 0.008),  # 0.1% - 0.8% daily
+        volatility_level="Low",
+        momentum_behavior="High persistence - momentum trends run longer",
+        sentiment_bias="Positive bias - news is interpreted optimistically",
         signal_adjustments={
-            "momentum": 1.3,    # Momentum fungerar bättre i bull markets
-            "trend": 1.2,       # Trend-following stark
-            "sentiment": 0.8    # Sentiment mindre viktigt (redan optimistiskt)
+            "momentum": 1.3,    # Momentum works better in bull markets
+            "trend": 1.2,       # Trend-following is strong
+            "sentiment": 0.8    # Sentiment less important (baseline optimism)
         }
     ),
 
     MarketRegime.BEAR: RegimeCharacteristics(
         name="Bear Market",
-        description="Nedåtgående trend med hög volatilitet och pessimism",
-        typical_return_range=(-0.008, -0.001), # -0.8% - -0.1% daglig
-        volatility_level="Hög",
-        momentum_behavior="Snabba reversal - momentum bryter oftare",
-        sentiment_bias="Negativt bias - nyheter tolkas pessimistiskt",
+        description="Downward trend with high volatility and pessimism",
+        typical_return_range=(-0.008, -0.001), # -0.8% to -0.1% daily
+        volatility_level="High",
+        momentum_behavior="Fast reversals - momentum breaks more often",
+        sentiment_bias="Negative bias - news is interpreted pessimistically",
         signal_adjustments={
-            "momentum": 0.7,    # Momentum mindre tillförlitligt
-            "trend": 1.1,       # Trend fortfarande viktig
-            "sentiment": 1.4    # Sentiment mycket viktigt (fear/panic)
+            "momentum": 0.7,    # Momentum less reliable
+            "trend": 1.1,       # Trend still matters
+            "sentiment": 1.4    # Sentiment very important (fear/panic)
         }
     ),
 
     MarketRegime.NEUTRAL: RegimeCharacteristics(
         name="Neutral Market",
-        description="Sidledes rörelse med måttlig volatilitet och blandat sentiment",
-        typical_return_range=(-0.002, 0.002), # -0.2% - +0.2% daglig
-        volatility_level="Måttlig",
-        momentum_behavior="Svag persistens - mean reversion dominerar",
-        sentiment_bias="Blandat - sentiment mer balanserat",
+        description="Sideways movement with moderate volatility and mixed sentiment",
+        typical_return_range=(-0.002, 0.002), # -0.2% to +0.2% daily
+        volatility_level="Moderate",
+        momentum_behavior="Weak persistence - mean reversion dominates",
+        sentiment_bias="Mixed - sentiment remains balanced",
         signal_adjustments={
-            "momentum": 0.9,    # Svagare momentum
-            "trend": 0.8,       # Svagare trend-following
-            "sentiment": 1.1    # Sentiment något viktigare för timing
+            "momentum": 0.9,    # Softer momentum
+            "trend": 0.8,       # Weaker trend-following
+            "sentiment": 1.1    # Sentiment slightly more useful for timing
         }
     )
 }
 
 class RegimeDetector:
     """
-    Marknadsregim-detektor baserad på HMM och heuristisk analys
+    Market regime detector combining HMM-style transitions and heuristics.
 
-    Kombinerar:
-    1. Hidden Markov Model för latenta regim-states
-    2. Heuristiska regler baserat på volatilitet, returns, sentiment
-    3. Adaptive regime transitions med hysteresis
+    Combines:
+    1. Hidden Markov Model intuition for latent regime states
+    2. Heuristic rules based on volatility, returns, and sentiment
+    3. Adaptive regime transitions with hysteresis
     """
 
     def __init__(self,
@@ -83,7 +83,7 @@ class RegimeDetector:
                  lookback_days: int = 60,
                  volatility_window: int = 20,
                  trend_window: int = 50):
-        # Använd config värden om tillgängliga
+        # Use configuration overrides when available
         if config and 'regime_detection' in config:
             regime_config = config['regime_detection']
             self.lookback_days = regime_config.get('lookback_days', lookback_days)
@@ -91,7 +91,7 @@ class RegimeDetector:
             self.trend_window = regime_config.get('trend_window', trend_window)
             self.transition_persistence = regime_config.get('transition_persistence', 0.80)
 
-            # Thresholds från config
+            # Thresholds from the configuration
             thresholds = regime_config.get('thresholds', {})
             self.vol_low_threshold = thresholds.get('volatility_low', 0.15)
             self.vol_high_threshold = thresholds.get('volatility_high', 0.25)
@@ -102,7 +102,7 @@ class RegimeDetector:
             # VIX integration configuration
             self.vix_config = regime_config.get('vix_integration', {})
         else:
-            # Fallback till default värden
+            # Fallback to default values
             self.lookback_days = lookback_days
             self.volatility_window = volatility_window
             self.trend_window = trend_window
@@ -116,11 +116,11 @@ class RegimeDetector:
             # Default VIX configuration
             self.vix_config = {}
 
-        # HMM-liknande transition probabilities (simplified)
-        # Regimer tenderar att persista - ändras inte för ofta
+        # HMM-style transition probabilities (simplified)
+        # Regimes tend to persist and should not flip too often
         persist = self.transition_persistence
-        switch_prob = (1.0 - persist) / 2  # Fördela resten mellan andra states
-        direct_switch = switch_prob * 0.3   # Mindre sannolikhet för direkt bull->bear
+        switch_prob = (1.0 - persist) / 2  # Distribute remaining probability across other states
+        direct_switch = switch_prob * 0.3   # Lower likelihood for a direct bull->bear jump
 
         self.transition_matrix = {
             MarketRegime.BULL: {
@@ -134,43 +134,43 @@ class RegimeDetector:
                 MarketRegime.BULL: direct_switch
             },
             MarketRegime.NEUTRAL: {
-                MarketRegime.NEUTRAL: persist * 0.9,  # Neutral något mindre persistent
+                MarketRegime.NEUTRAL: persist * 0.9,  # Neutral is slightly less persistent
                 MarketRegime.BULL: (1.0 - persist * 0.9) * 0.6,
                 MarketRegime.BEAR: (1.0 - persist * 0.9) * 0.4
             }
         }
 
-        # Regime history för smoothing
+        # Regime history for smoothing
         self.regime_history: List[MarketRegime] = []
         self.regime_probabilities_history: List[Dict[MarketRegime, float]] = []
 
     def compute_market_features(self, prices: pd.DataFrame) -> pd.DataFrame:
         """
-        Beräkna marknadsfeatures för regime-klassificering
+        Compute market features for regime classification.
 
         Features:
-        - Returns (olika tidshorisonter)
-        - Volatilitet (realized vol)
-        - Trend strength (olika SMA-crossovers)
+        - Returns (multiple horizons)
+        - Volatility (realised volatility)
+        - Trend strength (SMA crossovers)
         - Drawdown measures
         """
 
-        # Antag prices har columns: date, ticker, close
-        # Vi fokuserar på index-liknande behavior - tar medelvärde över tickers
+        # Assume prices has columns: date, ticker, close
+        # Focus on index-like behaviour by averaging across tickers
         market_data = prices.groupby('date')['close'].mean().sort_index()
 
         features = pd.DataFrame(index=market_data.index)
         features['price'] = market_data
 
-        # Returns på olika tidshorisonter
+        # Returns across multiple horizons
         features['ret_1d'] = market_data.pct_change()
         features['ret_5d'] = market_data.pct_change(5)
         features['ret_20d'] = market_data.pct_change(20)
 
-        # Volatilitet (realized vol)
+        # Volatility (annualised realised volatility)
         features['vol_20d'] = features['ret_1d'].rolling(self.volatility_window).std() * np.sqrt(252)
 
-        # Trend measures - dynamic window based on available data
+        # Trend measures - dynamic windows based on available data
         available_days = len(market_data)
         sma_short_window = min(10, max(5, available_days // 6))
         sma_long_window = min(self.trend_window, max(10, available_days // 3))
@@ -181,21 +181,21 @@ class RegimeDetector:
         features['price_vs_sma_long'] = (market_data - features['sma_long']) / features['sma_long']
         features['sma_slope'] = features['sma_short'].pct_change(min(5, available_days // 10))  # Dynamic slope window
 
-        # Drawdown från recent high (använd mindre window)
+        # Drawdown from recent highs (using a shorter window)
         rolling_max_window = min(60, max(20, available_days // 2))
         features['rolling_max'] = market_data.rolling(rolling_max_window).max()
         features['drawdown'] = (market_data - features['rolling_max']) / features['rolling_max']
 
-        # Trend consistency (% positive days i period)
+        # Trend consistency (% positive days within the window)
         positive_days_window = min(20, max(5, available_days // 4))
         features['positive_days_pct'] = (features['ret_1d'] > 0).rolling(positive_days_window).mean()
 
-        # Drop NaN men behåll tillräckligt data
+        # Drop NaNs while keeping enough data
         features_clean = features.dropna()
 
-        # Om för lite data kvar efter dropna, använd forward fill för vissa kolumner
+        # If too little data remains, forward-fill specific columns
         if len(features_clean) < max(10, available_days // 3):
-            print(f"⚠️ Få regime features ({len(features_clean)} rows), använder forward fill")
+            print(f"⚠️ Few regime features ({len(features_clean)} rows), applying forward fill")
             features = features.fillna(method='ffill').dropna()
         else:
             features = features_clean
@@ -204,11 +204,11 @@ class RegimeDetector:
 
     def classify_regime_heuristic(self, features: pd.Series, vix_data: Optional[pd.DataFrame] = None) -> Dict[MarketRegime, float]:
         """
-        Heuristisk regime-klassificering baserat på market features + VIX
-        Returnerar sannolikheter för varje regim
+        Heuristic regime classification based on market features plus VIX.
+        Returns probabilities for each regime.
         """
 
-        # Feature thresholds (konfigurerbara)
+        # Feature thresholds (configurable)
         vol_low_threshold = self.vol_low_threshold
         vol_high_threshold = self.vol_high_threshold
         return_bull_threshold = self.return_bull_threshold
@@ -305,7 +305,7 @@ class RegimeDetector:
         else:
             scores[MarketRegime.NEUTRAL] += 0.3
 
-        # Trend-based classification (använd nya kolumnnamn)
+        # Trend-based classification (uses updated column names)
         price_vs_sma = features['price_vs_sma_long']
         sma_slope = features['sma_slope']
         if price_vs_sma > 0.02 and sma_slope > 0.001:  # Above SMA + rising
@@ -330,12 +330,12 @@ class RegimeDetector:
         else:
             scores[MarketRegime.NEUTRAL] += 0.2
 
-        # Normalisera till sannolikheter
+        # Normalise to probabilities
         total_score = sum(scores.values())
         if total_score > 0:
             probabilities = {regime: score/total_score for regime, score in scores.items()}
         else:
-            # Default uniform distribution om inga scores
+            # Default to a uniform distribution if scores are zero
             probabilities = {regime: 1/3 for regime in MarketRegime}
 
         return probabilities
@@ -344,14 +344,14 @@ class RegimeDetector:
                                   current_probs: Dict[MarketRegime, float],
                                   previous_regime: Optional[MarketRegime] = None) -> Dict[MarketRegime, float]:
         """
-        Applicera transition matrix för att smooth regime changes
-        Regimer bör vara sticky - ändras inte för snabbt
+        Apply the transition matrix to smooth regime changes.
+        Regimes should be sticky and not flip too quickly.
         """
 
         if previous_regime is None or len(self.regime_history) == 0:
             return current_probs
 
-        # Kombinera current evidence med transition probabilities
+        # Combine evidence with transition probabilities
         smoothed_probs = {}
 
         for regime in MarketRegime:
@@ -361,7 +361,7 @@ class RegimeDetector:
 
             smoothed_probs[regime] = evidence * prior
 
-        # Normalisera
+        # Normalise
         total = sum(smoothed_probs.values())
         if total > 0:
             smoothed_probs = {k: v/total for k, v in smoothed_probs.items()}
@@ -372,7 +372,7 @@ class RegimeDetector:
 
     def detect_regime(self, prices: pd.DataFrame, vix_data: Optional[pd.DataFrame] = None) -> Tuple[MarketRegime, Dict[MarketRegime, float], Dict]:
         """
-        Huvudfunktion för regime-detektion med VIX integration
+        Primary regime-detection function with optional VIX integration.
 
         Args:
             prices: Price data for regime detection
@@ -380,29 +380,29 @@ class RegimeDetector:
 
         Returns:
         - Most likely regime
-        - Probabilities för alla regimer
+        - Probabilities for all regimes
         - Diagnostic information
         """
 
-        # Beräkna market features
+        # Compute market features
         features = self.compute_market_features(prices)
 
         if features.empty:
-            # Fallback till neutral om ingen data
+            # Default to neutral if no data is available
             default_probs = {regime: 1/3 for regime in MarketRegime}
             return MarketRegime.NEUTRAL, default_probs, {"error": "No market data"}
 
-        # Ta senaste observation
+        # Use the latest observation
         latest_features = features.iloc[-1]
 
-        # Heuristisk klassificering med VIX
+        # Heuristic classification with VIX integration
         raw_probabilities = self.classify_regime_heuristic(latest_features, vix_data)
 
-        # Applicera transition smoothing
+        # Apply transition smoothing
         previous_regime = self.regime_history[-1] if self.regime_history else None
         smoothed_probabilities = self.apply_transition_smoothing(raw_probabilities, previous_regime)
 
-        # Välj mest troliga regim
+        # Select the most likely regime
         most_likely_regime = max(smoothed_probabilities, key=smoothed_probabilities.get)
 
         # Diagnostics
@@ -420,11 +420,11 @@ class RegimeDetector:
             "regime_persistence": len([r for r in self.regime_history[-10:] if r == most_likely_regime]) / min(10, len(self.regime_history)) if self.regime_history else 0
         }
 
-        # Uppdatera history
+        # Update history
         self.regime_history.append(most_likely_regime)
         self.regime_probabilities_history.append(smoothed_probabilities)
 
-        # Begränsa history size
+        # Limit history size
         if len(self.regime_history) > 100:
             self.regime_history = self.regime_history[-100:]
             self.regime_probabilities_history = self.regime_probabilities_history[-100:]
@@ -449,32 +449,31 @@ class RegimeDetector:
         return RegimeResult(regime, confidence)
 
     def get_regime_adjustments(self, regime: MarketRegime) -> Dict[str, float]:
-        """Hämta signal adjustments för given regim"""
+        """Return signal adjustments for the given regime."""
         return REGIME_DEFINITIONS[regime].signal_adjustments
 
     def get_regime_explanation(self,
                              regime: MarketRegime,
                              probabilities: Dict[MarketRegime, float],
                              diagnostics: Dict,
-                             vix_data: Optional[pd.DataFrame] = None) -> str:
-        """
-        Generera förklaring av regime-klassificering för användaren
-        """
+                             vix_data: Optional[pd.DataFrame] = None,
+                             metals_data: Optional[pd.DataFrame] = None) -> str:
+        """Generate a user-facing explanation of the regime classification."""
 
         regime_def = REGIME_DEFINITIONS[regime]
         prob_pct = probabilities[regime] * 100
 
-        explanation = f"**{regime_def.name}** ({prob_pct:.0f}% säkerhet)\n"
+        explanation = f"**{regime_def.name}** ({prob_pct:.0f}% confidence)\n"
         explanation += f"{regime_def.description}\n\n"
 
         # Market context
         features = diagnostics["market_features"]
-        explanation += "**Marknadskontext:**\n"
-        explanation += f"- Volatilitet: {features['volatility_20d']*100:.1f}% ({regime_def.volatility_level})\n"
-        explanation += f"- 20-dagars avkastning: {features['return_20d']*100:+.1f}%\n"
+        explanation += "**Market Context:**\n"
+        explanation += f"- Volatility: {features['volatility_20d']*100:.1f}% ({regime_def.volatility_level})\n"
+        explanation += f"- 20-day return: {features['return_20d']*100:+.1f}%\n"
         explanation += f"- Position vs SMA-long: {features['price_vs_sma_long']*100:+.1f}%\n"
-        explanation += f"- Drawdown från high: {features['drawdown']*100:.1f}%\n"
-        explanation += f"- Positiva dagar (20d): {features['positive_days_pct']*100:.0f}%\n\n"
+        explanation += f"- Drawdown from high: {features['drawdown']*100:.1f}%\n"
+        explanation += f"- Positive days (20d): {features['positive_days_pct']*100:.0f}%\n\n"
 
         # VIX Analysis (if available)
         if vix_data is not None and not vix_data.empty:
@@ -483,47 +482,191 @@ class RegimeDetector:
                 vix_regime = latest_vix['vix_regime']
                 vix_level = latest_vix['vix_close']
 
-                explanation += "**VIX Makroanalys:**\n"
-                explanation += f"- VIX Nivå: {vix_level:.1f} ({vix_regime.replace('_', ' ').title()})\n"
+                explanation += "**VIX Macro Analysis:**\n"
+                explanation += f"- VIX Level: {vix_level:.1f} ({vix_regime.replace('_', ' ').title()})\n"
 
                 # VIX regime interpretation
                 vix_interp = {
-                    'low_fear': 'Låg rädsla - Investerare är självförtroende',
-                    'moderate_fear': 'Måttlig oro - Försiktig optimism',
-                    'high_fear': 'Hög oro - Investerare är nervösa',
-                    'extreme_fear': 'Extrem rädsla - Panik i marknaden'
+                    'low_fear': 'Low fear – investors are confident',
+                    'moderate_fear': 'Moderate concern – cautious optimism',
+                    'high_fear': 'High concern – investors are nervous',
+                    'extreme_fear': 'Extreme fear – market panic'
                 }
-                explanation += f"- Tolkning: {vix_interp.get(vix_regime, 'Okänd VIX regim')}\n"
+                explanation += f"- Interpretation: {vix_interp.get(vix_regime, 'Unknown VIX regime')}\n"
 
                 # VIX momentum if available
                 if 'vix_momentum_5d' in latest_vix:
                     vix_momentum = latest_vix['vix_momentum_5d']
-                    momentum_dir = "ökar" if vix_momentum > 0.05 else "minskar" if vix_momentum < -0.05 else "stabil"
+                    momentum_dir = "rising" if vix_momentum > 0.05 else "falling" if vix_momentum < -0.05 else "stable"
                     explanation += f"- VIX Trend (5d): {vix_momentum*100:+.1f}% ({momentum_dir})\n"
 
                 # VIX influence on regime decision
                 if self.vix_config.get('enabled', False):
                     influence = self.vix_config.get('influence_weight', 0.4)
-                    explanation += f"- VIX Påverkan: {influence:.0%} av regimbeslut\n"
+                    explanation += f"- VIX Influence: {influence:.0%} of regime decision\n"
 
                 explanation += "\n"
 
             except Exception as e:
-                explanation += "**VIX Analys:** Ej tillgänglig\n\n"
+                explanation += f"**VIX Analysis Error:** {e}\n\n"
+        else:
+            explanation += "**VIX Analysis:** Not available\n\n"
+
+        # Precious Metals Sentiment Analysis (if available)
+        if metals_data is not None and not metals_data.empty:
+            try:
+                latest_metals = metals_data.iloc[-1]
+                gold_level = latest_metals['gold_close']
+                silver_level = latest_metals['silver_close']
+                gold_silver_ratio = latest_metals['gold_silver_ratio']
+                metals_sentiment = latest_metals['metals_sentiment']
+
+                explanation += "**Precious Metals Sentiment Analysis:**\n"
+                explanation += f"- Gold (GLD): ${gold_level:.1f}\n"
+                explanation += f"- Silver (SLV): ${silver_level:.1f}\n"
+                explanation += f"- Gold/Silver Ratio: {gold_silver_ratio:.1f}\n"
+
+                # Precious metals sentiment interpretation
+                metals_interp = {
+                    'risk_off_strong': 'Strong flight to gold – defensive positioning favored',
+                    'risk_off_mild': 'Mild safe-haven demand – cautious sentiment',
+                    'neutral': 'Balanced precious metals sentiment – no clear directional bias',
+                    'risk_on_mild': 'Mild risk appetite – modest growth sentiment',
+                    'risk_on_strong': 'Strong risk appetite – growth assets favored'
+                }
+                explanation += f"- Sentiment: {metals_interp.get(metals_sentiment, 'Unknown metals sentiment')}\n"
+
+                # Gold momentum if available
+                if 'gold_return_20d' in latest_metals:
+                    gold_momentum = latest_metals['gold_return_20d']
+                    momentum_dir = "rallying" if gold_momentum > 0.02 else "declining" if gold_momentum < -0.02 else "stable"
+                    explanation += f"- Gold Trend (20d): {gold_momentum*100:+.1f}% ({momentum_dir})\n"
+
+                explanation += "\n"
+
+            except Exception as e:
+                explanation += f"**Precious Metals Analysis Error:** {e}\n\n"
+
+        # Factor analysis explaining regime detection logic
+        explanation += "**Factor Analysis - How Each Component Affects Regime Detection:**\n\n"
+
+        # VIX factor analysis
+        if vix_data is not None and not vix_data.empty:
+            try:
+                latest_vix = vix_data.iloc[-1]
+                vix_level = latest_vix['vix_close']
+                vix_influence_pct = 60  # From the VIX influence weight
+
+                if vix_level < 15:
+                    vix_effect = "🟢 **Low VIX** → Strong Bull bias (+0.3), Bear penalty (-0.2)"
+                elif vix_level < 20:
+                    vix_effect = "🟡 **Moderate VIX** → Neutral environment, balanced probabilities"
+                elif vix_level < 30:
+                    vix_effect = "🟠 **Elevated VIX** → Reduces Bull confidence, favors Neutral"
+                elif vix_level < 40:
+                    vix_effect = "🔴 **High VIX** → Bear bias (+0.2), Bull penalty (-0.2)"
+                else:
+                    vix_effect = "🚨 **Extreme VIX** → Strong Bear bias (+0.4), Major Bull penalty (-0.4)"
+
+                explanation += f"- **VIX Impact ({vix_influence_pct}% weight):** {vix_effect}\n"
+
+                if 'vix_momentum_5d' in latest_vix:
+                    vix_momentum = latest_vix['vix_momentum_5d']
+                    if abs(vix_momentum) > 0.2:
+                        momentum_effect = "Rising fear → Bear boost (+0.2)" if vix_momentum > 0.2 else "Falling fear → Bull boost (+0.2)"
+                        explanation += f"  - VIX Momentum: {momentum_effect}\n"
+
+            except Exception:
+                pass
+
+        # Market technical factors (computed from diagnostics if available)
+        explanation += "\n- **Technical Factors:**\n"
+        if diagnostics:
+            # Volatility analysis
+            volatility = diagnostics.get('volatility', 0.3)
+            if volatility < 0.2:
+                vol_effect = "Low volatility → Bull boost (+0.3), some Neutral (+0.1)"
+            elif volatility > 0.4:
+                vol_effect = "High volatility → Bear boost (+0.4), some Neutral (+0.1)"
+            else:
+                vol_effect = "Moderate volatility → Neutral bias (+0.3)"
+            explanation += f"  - Volatility: {vol_effect}\n"
+
+            # Return analysis
+            recent_return = diagnostics.get('ret_20d', 0.0)
+            if recent_return > 0.04:  # >4% in 20 days
+                return_effect = "Strong recent gains → Bull boost (+0.4)"
+            elif recent_return < -0.04:  # <-4% in 20 days
+                return_effect = "Recent losses → Bear boost (+0.4)"
+            else:
+                return_effect = "Sideways movement → Neutral bias (+0.3)"
+            explanation += f"  - Recent Returns: {return_effect}\n"
+
+            # Trend analysis
+            position_vs_sma = diagnostics.get('price_vs_sma_long', 0.0)
+            sma_slope = diagnostics.get('sma_slope', 0.0)
+            if position_vs_sma > 0.02 and sma_slope > 0.001:
+                trend_effect = "Above rising SMA → Bull boost (+0.3)"
+            elif position_vs_sma < -0.02 and sma_slope < -0.001:
+                trend_effect = "Below falling SMA → Bear boost (+0.3)"
+            else:
+                trend_effect = "Mixed trend signals → Neutral bias (+0.2)"
+            explanation += f"  - Trend Position: {trend_effect}\n"
+
+            # Drawdown analysis
+            drawdown = diagnostics.get('drawdown', 0.0)
+            if drawdown < -0.1:  # >10% drawdown
+                dd_effect = "Significant drawdown → Bear boost (+0.5), Bull penalty (-0.3)"
+                explanation += f"  - Drawdown: {dd_effect}\n"
+
+            # Positive days consistency
+            positive_days = diagnostics.get('positive_days_pct', 0.5)
+            if positive_days > 0.65:
+                consistency_effect = "High win rate (>65%) → Bull boost (+0.2)"
+            elif positive_days < 0.35:
+                consistency_effect = "Low win rate (<35%) → Bear boost (+0.2)"
+            else:
+                consistency_effect = "Mixed daily performance → Neutral bias (+0.2)"
+            explanation += f"  - Daily Consistency: {consistency_effect}\n"
+
+        # Precious metals factor analysis
+        if metals_data is not None and not metals_data.empty:
+            try:
+                latest_metals = metals_data.iloc[-1]
+                metals_sentiment = latest_metals['metals_sentiment']
+
+                explanation += "\n- **Precious Metals Sentiment Impact:**\n"
+                if metals_sentiment in ['risk_off_strong', 'risk_off_mild']:
+                    metals_effect = "Flight to safety → Reduces risk appetite, favors defensive positioning"
+                elif metals_sentiment in ['risk_on_strong', 'risk_on_mild']:
+                    metals_effect = "Risk appetite strong → Growth assets favored, reduces safe-haven demand"
+                else:
+                    metals_effect = "Neutral metals sentiment → No clear directional bias"
+                explanation += f"  - Gold/Silver Analysis: {metals_effect}\n"
+
+            except Exception:
+                pass
+
+        explanation += "\n**Final Regime Decision Logic:**\n"
+        explanation += "- Scores from all factors are weighted and combined\n"
+        explanation += "- VIX provides the strongest signal (60% influence)\n"
+        explanation += "- Technical factors validate or contradict VIX signals\n"
+        explanation += "- Precious metals provide sentiment confirmation\n"
+        explanation += "- Transition smoothing prevents regime oscillation\n\n"
 
         # Regime probability breakdown
-        explanation += "**Regim Sannolikheter:**\n"
+        explanation += "**Regime Probabilities:**\n"
         for reg, prob in probabilities.items():
             explanation += f"- {reg.value.title()}: {prob*100:.0f}%\n"
         explanation += "\n"
 
         # Signal implications
-        explanation += "**Signal-justeringar:**\n"
+        explanation += "**Signal Adjustments:**\n"
         for signal, multiplier in regime_def.signal_adjustments.items():
-            direction = "förstärks" if multiplier > 1.0 else "dämpas" if multiplier < 1.0 else "oförändrad"
+            direction = "amplified" if multiplier > 1.0 else "dampened" if multiplier < 1.0 else "unchanged"
             explanation += f"- {signal.title()}: {multiplier:.1f}x ({direction})\n"
 
-        explanation += f"\n**Regime Karakteristik:**\n"
+        explanation += f"\n**Regime Characteristics:**\n"
         explanation += f"- *{regime_def.momentum_behavior}*\n"
         explanation += f"- *{regime_def.sentiment_bias}*"
 

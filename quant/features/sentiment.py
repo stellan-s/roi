@@ -1,7 +1,7 @@
 import pandas as pd, re
 
-POS = re.compile(r"\b(stark|rekord|höjer|vinner|kontrakt|ök(ar|ning))\b", re.I)
-NEG = re.compile(r"\b(vinstvarning|sänker|förlust|svag|varslar|utredning)\b", re.I)
+POS = re.compile(r"\b(strong|record|raises|wins|contract|growth)\b", re.I)
+NEG = re.compile(r"\b(profit warning|cuts|loss|weak|layoffs|investigation)\b", re.I)
 
 def naive_sentiment(news_df: pd.DataFrame, tickers: list) -> pd.DataFrame:
     # enkel mapping: matcha bolagsnamn/tickers i title/summary
@@ -11,7 +11,7 @@ def naive_sentiment(news_df: pd.DataFrame, tickers: list) -> pd.DataFrame:
         score = 0
         if POS.search(text): score += 1
         if NEG.search(text): score -= 1
-        # grov koppling: om någon ticker-sträng finns i texten
+        # crude mapping: if a ticker string appears in the text
         hits=[t for t in tickers if t.split(".")[0].replace("-","") in text.replace("-","").upper()]
         if not hits: continue
         for t in hits:

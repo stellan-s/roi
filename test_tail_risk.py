@@ -192,8 +192,8 @@ def main():
     """Run all tail risk tests."""
     print("=== Tail Risk Calculator Test Suite ===")
     print("Testing new statistical definitions:")
-    print("- Tail Risk (huvudmått): P[return < -2σ]")
-    print("- Extreme Move Probability (sekundmått): P[|return| > 2σ]")
+    print("- Tail Risk (primary metric): P[return < -2σ]")
+    print("- Extreme Move Probability (secondary metric): P[|return| > 2σ]")
     print()
 
     try:

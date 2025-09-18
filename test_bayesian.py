@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test script för Bayesian Signal Engine
-Testar med syntetisk data och visar E[r], Pr(↑) outputs
+Test script for the Bayesian Signal Engine
+Exercises synthetic data and shows E[r], Pr(↑) outputs
 """
 
 import sys
@@ -17,7 +17,7 @@ from quant.bayesian.integration import BayesianPolicyEngine
 from quant.policy_engine.rules import bayesian_score
 
 def create_synthetic_data(n_days=100, n_tickers=5):
-    """Skapa syntetisk test-data"""
+    """Create synthetic test data"""
 
     dates = [datetime.today() - timedelta(days=i) for i in range(n_days, 0, -1)]
     tickers = [f"STOCK{i}.ST" for i in range(1, n_tickers + 1)]
@@ -26,7 +26,7 @@ def create_synthetic_data(n_days=100, n_tickers=5):
     tech_data = []
     for date in dates:
         for ticker in tickers:
-            # Simulera price och features
+            # Simulate price and features
             price = 100 + np.random.normal(0, 10)
             above_sma = np.random.choice([0, 1], p=[0.4, 0.6])  # Slight bullish bias
             mom_rank = np.random.uniform(0, 1)
@@ -82,12 +82,12 @@ def test_basic_engine():
     return output
 
 def test_learning():
-    """Test Bayesian learning från performance data"""
+    """Test Bayesian learning from performance data"""
     print("\n=== TESTING BAYESIAN LEARNING ===")
 
     engine = BayesianSignalEngine()
 
-    # Simulera några observationer med olika outcomes
+    # Simulate observations with different outcomes
     scenarios = [
         # Strong positive signals → good returns (confirming priors)
         ({'trend': 0.8, 'momentum': 0.7, 'sentiment': 0.5}, 0.05),
@@ -105,7 +105,7 @@ def test_learning():
     print("Before learning - signal diagnostics:")
     print(engine.get_signal_diagnostics())
 
-    # Update beliefs baserat på scenarios
+    # Update beliefs based on the scenarios
     for signals_dict, actual_return in scenarios:
         signals = {SignalType[k.upper()]: v for k, v in signals_dict.items()}
         engine.update_beliefs(signals, actual_return)
@@ -114,7 +114,7 @@ def test_learning():
     diagnostics = engine.get_signal_diagnostics()
     print(diagnostics)
 
-    # Test new predictions efter learning
+    # Test new predictions after learning
     test_signals = {
         SignalType.TREND: 0.4,
         SignalType.MOMENTUM: 0.5,
@@ -129,10 +129,10 @@ def test_learning():
     print(f"Signal weights: {output_after.signal_weights}")
 
 def test_full_pipeline():
-    """Test full Bayesian integration med realistisk data"""
+    """Test full Bayesian integration with realistic data"""
     print("\n=== TESTING FULL BAYESIAN PIPELINE ===")
 
-    # Skapa syntetisk data
+    # Create synthetic data
     tech_df, senti_df = create_synthetic_data(n_days=50, n_tickers=3)
 
     print(f"Generated {len(tech_df)} technical observations")
@@ -144,13 +144,13 @@ def test_full_pipeline():
     print(f"\nBayesian results shape: {results.shape}")
     print(f"Columns: {list(results.columns)}")
 
-    # Visa exempel på results
+    # Show sample results
     print("\nSample results (first 5 rows):")
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', None)
     print(results.head())
 
-    # Sammanfattning av decisions
+    # Decision summary
     print(f"\nDecision distribution:")
     print(results['decision'].value_counts())
 

@@ -18,12 +18,12 @@ def fetch_prices(tickers, cache_dir: str, lookback_days: int = 500):
                 try:
                     data = future.result(timeout=timeout_seconds)
                     if data is None or data.empty or "Close" not in data.columns:
-                        print(f"⚠️ Ingen data för {ticker}")
+                        print(f"⚠️ No data for {ticker}")
                         return None
 
                     close_series = data["Close"].dropna()
                     if close_series.empty:
-                        print(f"⚠️ Ingen Close data för {ticker}")
+                        print(f"⚠️ No Close data for {ticker}")
                         return None
 
                     tmp = close_series.reset_index()
@@ -32,10 +32,10 @@ def fetch_prices(tickers, cache_dir: str, lookback_days: int = 500):
                     print(f"✅ Fetched {len(tmp)} price points for {ticker}")
                     return tmp
                 except concurrent.futures.TimeoutError:
-                    print(f"⏰ Timeout ({timeout_seconds}s) för {ticker}")
+                    print(f"⏰ Timeout ({timeout_seconds}s) for {ticker}")
                     return None
         except Exception as e:
-            print(f"❌ Misslyckades hämta {ticker}: {e}")
+            print(f"❌ Failed to fetch {ticker}: {e}")
             return None
 
     Path(cache_dir).mkdir(parents=True, exist_ok=True)

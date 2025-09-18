@@ -1,5 +1,5 @@
 tickers:
-  # Large Cap (OMXS30 m.fl.)
+  # Swedish Large Cap
   - VOLV-B.ST     # Volvo B
   - INVE-B.ST     # Investor B
   - ERIC-B.ST     # Ericsson B
@@ -21,7 +21,7 @@ tickers:
   - ESSITY-B.ST   # Essity B
   - EVO.ST        # Evolution
   - HEXA-B.ST     # Hexagon B
-  - INDU-C.ST     # Industrivärden C
+  - INDU-C.ST     # Industrivarden C
   - LIFCO-B.ST    # Lifco B
   - NDA-SE.ST     # Nordea
   - SAAB-B.ST     # Saab B
@@ -35,7 +35,7 @@ tickers:
   - KINV-B.ST     # Kinnevik B
   - ADDT-B.ST     # Addtech B
 
-  # Mid Cap (exempel)
+  # Swedish Mid Cap (examples)
   - BIOG-B.ST     # BioGaia B
   - CLAS-B.ST     # Clas Ohlson B
   - CEVI.ST       # CellaVision
@@ -43,7 +43,7 @@ tickers:
   - ELAN-B.ST     # Elanders B
   - ENEA.ST       # Enea
 
-  # USA
+  # United States
   - AAPL          # Apple
   - MSFT          # Microsoft
   - GOOGL         # Alphabet

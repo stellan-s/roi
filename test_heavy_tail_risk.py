@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test script för Heavy-tail Risk Modeling
-Visar Student-t, EVT, Monte Carlo och stress testing
+Test script for heavy-tail risk modeling
+Demonstrates Student-t, EVT, Monte Carlo, and stress testing
 """
 
 import sys
@@ -17,26 +17,26 @@ from quant.risk.heavy_tail import HeavyTailRiskModel
 from quant.risk.analytics import RiskAnalytics, STRESS_SCENARIOS
 
 def test_heavy_tail_distributions():
-    """Test Student-t distribution fitting på real data"""
+    """Test Student-t distribution fitting on real data"""
     print("=== TESTING HEAVY-TAIL DISTRIBUTIONS ===")
 
-    # Ladda real price data
+    # Load real price data
     uni = load_yaml("universe.yaml")["tickers"]
     cfg = load_yaml("settings.yaml")
     prices = fetch_prices(uni, cfg["data"]["cache_dir"], cfg["data"]["lookback_days"])
 
-    # Focus på en ticker för detailed analysis
-    test_ticker = "TSLA"  # High volatility för bra heavy-tail example
+    # Focus on a single ticker for detailed analysis
+    test_ticker = "TSLA"  # High volatility for a good heavy-tail example
     if test_ticker not in prices['ticker'].values:
         test_ticker = uni[0]  # Fallback
 
     ticker_prices = prices[prices['ticker'] == test_ticker]['close']
     returns = ticker_prices.pct_change().dropna()
 
-    print(f"Analyzing {test_ticker} med {len(returns)} daily returns")
+    print(f"Analyzing {test_ticker} with {len(returns)} daily returns")
     print(f"Return statistics:")
-    print(f"  Mean: {returns.mean()*252*100:.1f}% årlig")
-    print(f"  Volatilitet: {returns.std()*np.sqrt(252)*100:.1f}% årlig")
+    print(f"  Mean: {returns.mean()*252*100:.1f}% annual")
+    print(f"  Volatility: {returns.std()*np.sqrt(252)*100:.1f}% annual")
     print(f"  Skewness: {returns.skew():.2f}")
     print(f"  Kurtosis: {returns.kurtosis():.2f} (excess)")
 
@@ -46,8 +46,8 @@ def test_heavy_tail_distributions():
     # Fit Student-t distribution
     student_t_params = risk_model.fit_heavy_tail_distribution(returns)
     print(f"\nStudent-t parameters:")
-    print(f"  Location (μ): {student_t_params['location']*252*100:.2f}% årlig")
-    print(f"  Scale (σ): {student_t_params['scale']*np.sqrt(252)*100:.2f}% årlig")
+    print(f"  Location (μ): {student_t_params['location']*252*100:.2f}% annual")
+    print(f"  Scale (σ): {student_t_params['scale']*np.sqrt(252)*100:.2f}% annual")
     print(f"  Degrees of freedom (ν): {student_t_params['degrees_of_freedom']:.1f}")
     print(f"  Sample size: {student_t_params['sample_size']}")
 
@@ -65,12 +65,12 @@ def test_heavy_tail_distributions():
 
 def test_tail_risk_metrics(ticker, returns, student_t_params):
     """Test tail risk calculations"""
-    print(f"\n=== TAIL RISK METRICS FÖR {ticker} ===")
+    print(f"\n=== TAIL RISK METRICS FOR {ticker} ===")
 
     cfg = load_yaml("settings.yaml")
     risk_model = HeavyTailRiskModel(cfg)
 
-    # Calculate tail risk för different horizons
+    # Calculate tail risk for different horizons
     horizons = [21, 63, 252]  # 1m, 3m, 1y
     confidence_levels = [0.95, 0.99]
 
@@ -87,15 +87,15 @@ def test_tail_risk_metrics(ticker, returns, student_t_params):
             print(f"    Extreme event prob: {metrics.extreme_event_probability*100:.2f}%")
 
 def test_monte_carlo_simulation(ticker, student_t_params):
-    """Test Monte Carlo simulation för 12m probabilities"""
-    print(f"\n=== MONTE CARLO SIMULATION FÖR {ticker} ===")
+    """Test Monte Carlo simulation for 12-month probabilities"""
+    print(f"\n=== MONTE CARLO SIMULATION FOR {ticker} ===")
 
     cfg = load_yaml("settings.yaml")
     risk_model = HeavyTailRiskModel(cfg)
 
-    # Simulate med realistic parameters
-    expected_return = 0.08  # 8% årlig förväntad return
-    volatility = 0.25       # 25% årlig volatilitet
+    # Simulate with realistic parameters
+    expected_return = 0.08  # 8% annual expected return
+    volatility = 0.25       # 25% annual volatility
 
     mc_results = risk_model.monte_carlo_simulation(
         expected_return=expected_return,
@@ -105,9 +105,9 @@ def test_monte_carlo_simulation(ticker, student_t_params):
         n_simulations=10000
     )
 
-    print(f"Monte Carlo Results (12 månader, {mc_results.n_simulations:,} simulations):")
+    print(f"Monte Carlo Results (12 months, {mc_results.n_simulations:,} simulations):")
     print(f"  Expected return: {mc_results.mean_return*100:.1f}%")
-    print(f"  Volatilitet: {mc_results.std_return*100:.1f}%")
+    print(f"  Volatility: {mc_results.std_return*100:.1f}%")
     print(f"  Skewness: {mc_results.skewness:.2f}")
     print(f"  Excess Kurtosis: {mc_results.kurtosis:.2f}")
 
@@ -150,7 +150,7 @@ def test_risk_analytics_integration():
     cfg = load_yaml("settings.yaml")
     risk_analytics = RiskAnalytics(cfg)
 
-    # Skapa mock portfolio för testing
+    # Create mock portfolio for testing
     mock_portfolio = {
         'TSLA': 0.3,
         'AAPL': 0.25,
@@ -162,11 +162,11 @@ def test_risk_analytics_integration():
     for ticker, weight in mock_portfolio.items():
         print(f"  {ticker}: {weight*100:.0f}%")
 
-    # Create simplified risk profiles (in real usage, these would be calculated från price history)
+    # Create simplified risk profiles (in real usage they would be calculated from price history)
     mock_risk_profiles = {}
 
     for ticker, weight in mock_portfolio.items():
-        # Mock risk profile baserat på typical values
+        # Mock risk profile based on typical values
         if ticker == 'TSLA':
             volatility = 0.40  # High vol
             tail_multiplier = 2.5
@@ -181,7 +181,7 @@ def test_risk_analytics_integration():
         from quant.risk.analytics import PortfolioRiskProfile
         from quant.risk.heavy_tail import TailRiskMetrics, MonteCarloResults
 
-        # Simplified metrics för demo
+        # Simplified metrics for demo purposes
         tail_metrics = TailRiskMetrics(
             confidence_level=0.95,
             time_horizon_days=21,
@@ -274,15 +274,15 @@ if __name__ == "__main__":
         portfolio_summary = test_risk_analytics_integration()
 
         print("\n" + "=" * 60)
-        print("✅ ALLA HEAVY-TAIL RISK TESTER LYCKADES!")
+        print("✅ ALL HEAVY-TAIL RISK TESTS PASSED!")
         print(f"✓ Student-t fitting: DoF={student_t_params['degrees_of_freedom']:.1f} (heavy tails detected)")
         print(f"✓ EVT analysis: Extreme events captured")
-        print(f"✓ Monte Carlo: 12m probabilities beräknade")
-        print(f"✓ Stress testing: {len(STRESS_SCENARIOS)} scenarios implementerade")
-        print(f"✓ Risk analytics: Portfolio risk assessment komplett")
+        print(f"✓ Monte Carlo: 12m probabilities calculated")
+        print(f"✓ Stress testing: {len(STRESS_SCENARIOS)} scenarios implemented")
+        print(f"✓ Risk analytics: Portfolio risk assessment completed")
 
     except Exception as e:
-        print(f"\n❌ TEST MISSLYCKADES: {e}")
+        print(f"\n❌ TEST FAILED: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

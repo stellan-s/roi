@@ -257,10 +257,10 @@ def get_regime_explanation(self,
                          probabilities: Dict[MarketRegime, float],
                          diagnostics: Dict) -> str:
 
-    explanation = f"**{regime.value.title()} Market** ({probabilities[regime]*100:.0f}% säkerhet)\n"
+    explanation = f"**{regime.value.title()} Market** ({probabilities[regime]*100:.0f}% confidence)\n"
 
     if regime == MarketRegime.BEAR:
-        explanation += "Nedåtgående trend med hög volatilitet och pessimism\n\n"
+        explanation += "Downward trend with high volatility and pessimism\n\n"
     # ... detailed market context
 
     return explanation

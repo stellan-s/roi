@@ -6,15 +6,15 @@ from ..bayesian.integration import BayesianPolicyEngine
 _bayesian_engine = None
 
 def get_bayesian_engine(config: Optional[Dict] = None) -> BayesianPolicyEngine:
-    """Singleton pattern för Bayesian engine"""
+    """Singleton pattern for the Bayesian engine."""
     global _bayesian_engine
     if _bayesian_engine is None:
         _bayesian_engine = BayesianPolicyEngine(config)
     return _bayesian_engine
 
 def simple_score(tech: pd.DataFrame, senti: pd.DataFrame) -> pd.DataFrame:
-    """Legacy simple scoring - behålls för backward compatibility"""
-    # merge dagsnivå
+    """Legacy simple scoring retained for backward compatibility."""
+    # Merge on daily granularity
     t = tech.copy()
     t["date"]=pd.to_datetime(t["date"]).dt.date
     s = senti.rename(columns={"date":"date"})
@@ -31,15 +31,15 @@ def simple_score(tech: pd.DataFrame, senti: pd.DataFrame) -> pd.DataFrame:
 
 def bayesian_score(tech: pd.DataFrame, senti: pd.DataFrame, prices: Optional[pd.DataFrame] = None, config: Optional[Dict] = None) -> pd.DataFrame:
     """
-    Bayesian signal combination med E[r], Pr(↑) och uncertainty quantification
+    Bayesian signal combination producing E[r], Pr(↑), and uncertainty quantification.
 
-    Returns enriched DataFrame med:
-    - expected_return: E[r] daglig förväntad return
-    - prob_positive: Pr(↑) sannolikhet för positiv return
+    Returns an enriched DataFrame with:
+    - expected_return: Expected daily return
+    - prob_positive: Probability of a positive return
     - confidence_lower/upper: Uncertainty bands
-    - decision: Buy/Sell/Hold med Bayesian logic
-    - decision_confidence: Confidence i beslut (0-1)
-    - signal weights: Dynamiska vikter för trend/momentum/sentiment
+    - decision: Buy/Sell/Hold from Bayesian logic
+    - decision_confidence: Decision confidence (0-1)
+    - signal weights: Dynamic weights for trend/momentum/sentiment
     """
     engine = get_bayesian_engine(config)
     return engine.bayesian_score(tech, senti, prices)
@@ -48,23 +48,23 @@ def update_bayesian_beliefs(historical_predictions: pd.DataFrame,
                            actual_returns: pd.DataFrame,
                            horizon_days: int = 21) -> None:
     """
-    Uppdatera Bayesian priors baserat på faktisk performance
+    Update Bayesian priors based on realised performance.
     """
     engine = get_bayesian_engine()
     engine.update_with_performance(historical_predictions, actual_returns, horizon_days)
 
 def get_bayesian_diagnostics() -> pd.DataFrame:
-    """Hämta diagnostics om signal effectiveness"""
+    """Return diagnostics about signal effectiveness."""
     engine = get_bayesian_engine()
     return engine.get_diagnostics()
 
 def get_signal_history() -> pd.DataFrame:
-    """Hämta historik av signal observations"""
+    """Return the history of signal observations."""
     engine = get_bayesian_engine()
     return engine.get_signal_history()
 
 def get_regime_info() -> dict:
-    """Hämta aktuell marknadsregim information"""
+    """Return current market regime information."""
     try:
         # Try to get regime info from latest recommendations file
         import os
@@ -144,6 +144,6 @@ def get_regime_info() -> dict:
     return engine.get_regime_info()
 
 def get_regime_history() -> pd.DataFrame:
-    """Hämta historik av regime detections"""
+    """Return the history of regime detections."""
     engine = get_bayesian_engine()
     return engine.get_regime_history()
