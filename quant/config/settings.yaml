@@ -4,13 +4,88 @@ run:
 
 data:
   cache_dir: "data"
-  lookback_days: 750   # Reduced to prevent hanging during debugging
+  lookback_days: 1250   # Reduced to prevent hanging during debugging
 
 signals:
-  sma_long: 50         # Reduced from 200 to 50 for more responsive trend signal
-  momentum_window: 126 # Reduced from 252 to 126 (6 months vs 12 months)
+  # RADICAL: Advanced multi-signal alpha generation
+  sma_long: 50         # Primary trend signal
+  sma_medium: 20       # Medium-term trend
+  sma_short: 5         # Short-term trend
+
+  # NEW: Advanced technical alpha signals
+  advanced_signals:
+    enabled: true
+
+    # Breakout detection
+    breakout_detection:
+      enabled: true
+      volume_surge_multiplier: 2.0    # 2x average volume for breakouts
+      price_breakout_threshold: 0.02  # 2% price breakout minimum
+      consolidation_days: 10          # Days of consolidation before breakout
+
+    # Relative strength analysis
+    relative_strength:
+      enabled: true
+      sector_relative_strength: true  # Outperformance vs sector
+      market_relative_strength: true  # Outperformance vs market (SPY)
+      lookback_periods: [21, 63, 126] # Multiple timeframes
+
+    # Options flow indicators (proxy using volatility)
+    options_flow_proxy:
+      enabled: true
+      iv_rank_threshold: 80           # High IV rank suggests institutional activity
+      unusual_volume_threshold: 3.0   # 3x normal volume
+
+    # Earnings momentum
+    earnings_momentum:
+      enabled: true
+      eps_surprise_weight: 0.8        # Weight for earnings surprises
+      revenue_surprise_weight: 0.6    # Weight for revenue surprises
+      guidance_revision_weight: 1.0   # Weight for guidance revisions
+
+  # RADICAL: Ultra-high momentum quality for alpha generation
+  momentum_window: 126 # Primary momentum (6 months)
+  momentum_consistency_window: 21  # Check momentum consistency over 21 days
+  momentum_quality_threshold: 0.75  # High momentum quality (top 25%)
+
+  # RADICAL: Momentum strength and persistence analysis
+  momentum_strength_analysis:
+    enabled: true
+    strength_threshold: 0.30       # Minimum 30% momentum strength (EXTREME)
+    persistence_days: 20           # Days of consistent momentum required (EXTREME)
+    acceleration_bonus: 2.0        # MASSIVE bonus for accelerating momentum
+    deceleration_penalty: 0.3      # SEVERE penalty for decelerating momentum
+
+    # NEW: Momentum quality filters
+    quality_filters:
+      require_volume_confirmation: true    # Must have volume support
+      min_consecutive_up_days: 3          # Minimum consecutive up days
+      max_volatility_during_trend: 0.25   # Maximum volatility during trend
+
+  # ENHANCED: Multi-timeframe signal confirmation
+  trend_confirmation:
+    enabled: true                  # NEW: Require multi-timeframe alignment
+    short_medium_alignment: 0.7    # Weight when short/medium trends align
+    medium_long_alignment: 0.8     # Weight when medium/long trends align
+    full_alignment_bonus: 1.2      # Bonus when all timeframes align
+
+  # ENHANCED: Sentiment analysis improvements
+  sentiment_improvements:
+    enabled: true
+    decay_factor: 0.9              # NEW: News impact decay (daily)
+    volume_weighted: true          # NEW: Weight sentiment by trading volume
+    sector_specific: true          # NEW: Apply sector-specific sentiment weights
+
   news_feed_urls:
     - "https://news.cision.com/se/rss/all"
+    # - "https://www.affarsvarlden.se/rss"
+    - "https://www.di.se/rss/"
+    - "https://www.avanza.se/placera/forstasidan.rss"
+    - "https://www.privataaffarer.se/rss"
+    - "https://borsvarlden.com/feed/"
+    - "https://finance.yahoo.com/news/rssindex"
+    - "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+
 
 # Bayesian Engine Configuration
 bayesian:
@@ -49,16 +124,27 @@ regime_detection:
   volatility_window: 20         # Increased from 10 to 20 for stability
   trend_window: 50              # Increased from 20 to 50 for better trends
 
-  # Regime transition probabilities (sticky regimes)
+  # ENHANCED: Regime transition probabilities with uncertainty management
   transition_persistence: 0.80  # Probability of remaining in the same regime
+  transition_uncertainty_threshold: 0.3  # NEW: Minimum confidence for regime classification
+  regime_transition_detection:
+    enabled: true                # NEW: Enhanced transition detection
+    lookback_for_stability: 10   # Days to look back for regime stability
+    min_regime_duration: 3       # Minimum days in regime before allowing transition
+    transition_momentum_weight: 0.4  # Weight of momentum during transitions
 
-  # Regime classification thresholds (less aggressive)
+  # ENHANCED: Regime classification thresholds with transition zones
   thresholds:
     volatility_low: 0.12        # 12% annual vol = low (lowered from 0.15)
     volatility_high: 0.30       # 30% annual vol = high (raised from 0.25)
+    volatility_transition_zone: 0.05  # NEW: ±5% zone around thresholds for transitions
+
     return_bull: 0.003          # 0.3% daily for bull (raised from 0.002)
     return_bear: -0.003         # -0.3% daily for bear (lowered from -0.002)
+    return_transition_zone: 0.001  # NEW: ±0.1% zone for transition detection
+
     drawdown_bear: -0.15        # -15% drawdown → bear (lowered from -0.10)
+    drawdown_transition_zone: 0.03  # NEW: ±3% zone around drawdown thresholds
 
   # VIX Integration for Global Market Context
   vix_integration:
@@ -126,14 +212,52 @@ regime_detection:
       drop_bull_boost: 0.2      # Extra bull score when VIX drops
 
 policy:
-  max_weight: 0.10             # Max position size per aktie
+  max_weight: 0.06             # Max position size per stock (reduced from 0.10 for diversification)
   pre_earnings_freeze_days: 5  # Disciplinary rule: no trades before earnings
   trade_cost_bps: 3           # Transaction costs (lower to encourage trading/backtests)
+
+  # ENHANCED: Advanced transaction cost optimization
+  transaction_optimization:
+    enabled: true
+    min_expected_alpha: 0.002   # Minimum 0.2% expected alpha to overcome costs
+    cost_benefit_ratio: 2.0     # Require 2:1 benefit to cost ratio
+    liquidity_adjustment: true  # Adjust costs based on market cap/volume
+    batch_trading: true         # Batch small trades to reduce costs
+
+  # NEW: Stop loss and risk management
+  stop_loss_management:
+    enabled: true
+    trailing_stop_loss: 0.08    # 8% trailing stop loss
+    max_position_loss: 0.15     # Maximum 15% loss per position
+    portfolio_stop_loss: 0.12   # Portfolio-level 12% stop loss
+    recovery_multiplier: 0.5    # Reduce position sizes by 50% after stop loss
+
+  # ENHANCED: Advanced entry and exit optimization
+  entry_exit_optimization:
+    enabled: true
+    min_holding_period: 2       # Minimum 2 days holding period
+    profit_taking_threshold: 0.10  # Take profits at 10% gain
+    partial_profit_taking: 0.5   # Take 50% profits at threshold
+    momentum_exit_signal: true   # Exit when momentum reverses
+
+    # NEW: Advanced entry timing
+    entry_timing:
+      volume_confirmation: true     # Require volume confirmation for entries
+      min_volume_ratio: 1.2        # Minimum 120% of average volume
+      pullback_entry: true          # Enter on pullbacks in uptrends
+      max_pullback_percent: 0.03    # Maximum 3% pullback for entry
+
+    # NEW: Advanced exit timing
+    exit_timing:
+      trailing_stop_tightening: true  # Tighten stops as profits increase
+      volatility_adjusted_stops: true # Adjust stops based on volatility
+      earnings_protection: true      # Reduce positions before earnings
+      end_of_day_exits: false        # Exit positions at day end (false for swing)
 
   # Portfolio-level rules
   max_single_regime_exposure: 0.85  # Max 85% in the same regime (more permissive)
   regime_diversification: true      # Require regime diversification
-  min_portfolio_positions: 3        # Minimum 3 active positions
+  min_portfolio_positions: 6        # Minimum 3 active positions
   bear_market_allocation: 0.85      # Max 85% allocation in bear markets (increased from 60%)
 
   # Heavy-tail risk controls
@@ -145,25 +269,92 @@ policy:
 risk_budgeting:
   enabled: true
 
-  # Position sizing constraints
-  max_position_weight: 0.10          # Max 10% per stock (reduced from 15%)
-  max_factor_concentration: 0.25     # Max 25% per factor category (reduced from 35%)
-  min_positions: 8                   # Minimum diversification (increased from 5)
-  max_positions: 20                  # Focus constraint (vs unlimited)
+  # Position sizing constraints (EXTREME CONVICTION FOR ALPHA)
+  max_position_weight: 0.25          # Max 25% per stock (EXTREME conviction)
+  max_factor_concentration: 0.60     # Max 60% per factor category (concentrated)
+  min_positions: 3                   # Minimum diversification (EXTREME concentration)
+  max_positions: 6                   # Focus constraint (3-6 positions MAX for alpha)
 
   # Risk adjustment parameters
   tail_risk_penalty_factor: 0.5      # Penalty multiplier for high tail risk
   uncertainty_penalty_factor: 3.0    # Penalty multiplier for high uncertainty (increased from 2.0)
 
-  # Regime-specific allocation constraints
-  regime_allocation_multipliers:
-    bull: 1.0                        # 100% allocation in bull markets
-    bear: 0.7                        # 70% allocation in bear markets (more conservative)
-    neutral: 0.85                    # 85% allocation in neutral markets
+  # DISABLED: Kelly Criterion and Risk Parity (over-diversifying)
+  kelly_criterion:
+    enabled: false                  # DISABLED - was reducing position sizes too much
+    max_kelly_fraction: 0.25
+    min_win_rate: 0.55
+    lookback_days: 252
+    confidence_level: 0.9
 
-  # Volatility targeting
-  target_portfolio_volatility: 0.15   # Target 15% annual volatility
-  volatility_penalty_factor: 2.0      # Penalize high-vol positions
+  # DISABLED: Risk parity component (spreading risk too thin)
+  risk_parity:
+    enabled: false                  # DISABLED - was diluting high-conviction positions
+    target_risk_contribution: 0.067
+    risk_budgeting_frequency: 5
+    correlation_adjustment: true
+
+  # ENHANCED: Correlation-based risk management
+  correlation_controls:
+    enabled: true                    # Enable correlation-based position sizing
+    max_pairwise_correlation: 0.75   # Maximum correlation between any two positions
+    correlation_penalty_factor: 2.0  # Penalty multiplier for high-correlation positions
+    correlation_lookback_days: 60    # Days of data for correlation calculation
+    rebalance_on_correlation_spike: true  # Reduce positions when correlations spike
+
+  # ENHANCED: Volatility-based position sizing
+  volatility_position_sizing:
+    enabled: true                    # Enable volatility-adjusted position sizing
+    base_volatility: 0.20           # Base volatility for position sizing (20% annual)
+    min_position_multiplier: 0.3    # Minimum position size (30% of base)
+    max_position_multiplier: 2.0    # Maximum position size (200% of base)
+    volatility_lookback_days: 30    # Days for volatility calculation
+
+  # DISABLED: VIX-based dynamic portfolio sizing (reducing exposure too much)
+  vix_position_sizing:
+    enabled: false                  # DISABLED - was reducing positions during good times
+    low_vix_threshold: 15
+    medium_vix_threshold: 25
+    optimal_vix_range: [16, 24]
+
+    # Position size multipliers based on VIX
+    low_vix_multiplier: 0.8
+    optimal_vix_multiplier: 1.0
+    medium_vix_multiplier: 0.9
+    high_vix_multiplier: 0.6
+
+  # ENHANCED: Regime-specific allocation constraints
+  regime_allocation_multipliers:
+    bull: 0.95                       # 95% allocation in bull markets (reduced from 100%)
+    bear: 0.50                       # 50% allocation in bear markets (reduced from 70%)
+    neutral: 0.70                    # 70% allocation in neutral markets (reduced from 85%)
+    transition: 0.30                 # 30% allocation during regime transitions (NEW)
+
+  # ENHANCED: Volatility targeting with regime adaptation
+  target_portfolio_volatility: 0.12   # Target 12% annual volatility (reduced from 15%)
+  volatility_penalty_factor: 3.0      # Penalize high-vol positions (increased from 2.0)
+
+  # DISABLED: Volatility regime detection (over-complicating)
+  volatility_regimes:
+    enabled: false                   # DISABLED - adding complexity without returns
+    low_vol_threshold: 0.08
+    high_vol_threshold: 0.20
+    regime_lookback_days: 20
+
+    # Regime-specific volatility targets
+    low_vol_target: 0.10
+    medium_vol_target: 0.12
+    high_vol_target: 0.08
+
+    # Regime transition smoothing
+    regime_transition_days: 5
+    confidence_threshold: 0.75
+
+  # NEW: Dynamic rebalancing controls (LESS FREQUENT FOR QUALITY)
+  rebalancing:
+    min_weight_drift: 0.08           # Minimum 8% drift before rebalancing (INCREASED)
+    max_days_between_rebalance: 10   # Force rebalancing every 10 days maximum (INCREASED)
+    transaction_cost_threshold: 0.005 # Only rebalance if expected benefit > 0.5% (INCREASED)
 
 # Statistical Tail Risk Analysis (replaces heuristic tail risk)
 tail_risk:
@@ -227,12 +418,33 @@ risk_analytics:
 stock_factor_profiles:
   enabled: true
 
-  # Dynamic filtering for investable universe (temporarily relaxed for testing)
+  # Dynamic filtering for investable universe (ULTRA-HIGH CONVICTION FOR ALPHA)
   dynamic_filtering:
-    cost_threshold: 0.0005       # 5bps min expected return (very lenient for testing)
-    conviction_threshold: 0.3    # 30% min decision confidence (relaxed for testing)
-    max_positions: 20            # Focus portfolio on top opportunities
+    cost_threshold: 0.002        # 20bp min expected return (High selectivity)
+    conviction_threshold: 0.55   # 55% min decision confidence (Above average)
+    max_positions: 5             # Focus portfolio on ONLY the best opportunities
     min_liquidity_mcap: 1000     # Minimum market cap (MSEK) for liquidity
+
+    # NEW: Alpha-focused filtering
+    alpha_requirements:
+      min_expected_alpha: 0.03   # Minimum 3% expected alpha per position
+      min_sharpe_contribution: 0.02  # Minimum 0.02 Sharpe contribution per position
+      require_multiple_signals: true  # Require confirmation from multiple signal types
+
+  # DISABLED: Sector rotation and factor timing system (over-complicating)
+  sector_rotation:
+    enabled: false               # DISABLED - focus on best individual stocks, not sectors
+    rotation_lookback_days: 60
+    momentum_threshold: 0.05
+    max_sector_tilt: 0.4
+    rotation_persistence: 0.85
+
+    # Factor timing based on market conditions
+    factor_timing:
+      momentum_favorable_vix: 20
+      defensive_favorable_vix: 25
+      tech_growth_rate_threshold: 0.04
+      commodity_inflation_threshold: 0.03
 
   # Factor profile categories
   categories:
@@ -244,6 +456,13 @@ stock_factor_profiles:
         sentiment: 0.6           # Moderate news sensitivity
         interest_rate_sensitivity: 0.9  # Critical factor for banks
         credit_cycle: 0.8        # Loan demand and credit risk
+
+      # NEW: Macro sensitivities for easy implementation
+      macro_sensitivities:
+        treasury_10y: 0.8        # Higher rates = higher bank margins
+        dollar_index: 0.3        # Moderate USD strength impact
+        oil: -0.2                # Higher oil = slight negative (costs)
+        eur_sek: 0.4             # EUR strength helps Swedish banks
       regime_multipliers:
         bull: 1.2               # Benefit from economic growth
         bear: 0.7               # Defensive characteristics
@@ -257,6 +476,13 @@ stock_factor_profiles:
         sentiment: 0.5          # Less news-driven, more fundamental
         economic_cycle: 0.9     # Highly sensitive to GDP/PMI
         commodity_exposure: 0.7 # Input cost sensitivity
+
+      # NEW: Macro sensitivities for cyclical industrials
+      macro_sensitivities:
+        treasury_10y: -0.4       # Higher rates hurt cyclicals
+        dollar_index: 0.2        # USD strength helps exporters
+        oil: -0.6                # High oil = major input cost
+        eur_sek: 0.6             # EUR strength helps Swedish exporters
       regime_multipliers:
         bull: 1.3               # High leverage to growth
         bear: 0.6               # Cyclical downturns hurt
@@ -289,17 +515,31 @@ stock_factor_profiles:
         neutral: 0.8
 
     us_tech_giants:
-      description: "Large cap US technology leaders"
+      description: "Large cap US technology leaders - PRIMARY ALPHA SOURCE"
       stocks: ["GOOGL", "MSFT", "NVDA", "AAPL", "META", "AMZN"]
       factor_weights:
-        momentum: 0.9           # Very momentum-driven
-        sentiment: 0.9          # AI/innovation news critical
+        momentum: 1.5           # MASSIVE momentum focus (increased from 0.9)
+        sentiment: 1.2          # AI/innovation news critical (increased)
         fed_policy: 0.8         # Rate sensitive (growth valuations)
-        ai_innovation: 0.9      # AI theme driving valuations
+        ai_innovation: 1.5      # AI theme driving valuations (increased)
+
+      # ENHANCED: Alpha-focused weighting
+      alpha_multipliers:
+        enabled: true
+        base_weight: 2.0        # 2x weighting vs other categories
+        momentum_bonus: 3.0     # 3x bonus for strong momentum
+        breakout_bonus: 2.5     # 2.5x bonus for breakouts
+
+      # NEW: Macro sensitivities for growth/tech stocks
+      macro_sensitivities:
+        treasury_10y: -0.9       # Very rate sensitive (high duration)
+        dollar_index: -0.3       # USD strength hurts international revenue
+        oil: -0.1                # Minor input cost impact
+        eur_sek: 0.0             # No direct EUR/SEK exposure
       regime_multipliers:
-        bull: 1.5               # Extreme leverage to risk-on sentiment
-        bear: 0.4               # Heavy de-risking target
-        neutral: 0.7
+        bull: 2.0               # MASSIVE leverage to risk-on sentiment (increased)
+        bear: 0.2               # Heavy de-risking target (decreased)
+        neutral: 0.5            # Reduced neutral exposure (decreased)
 
     energy_commodities:
       description: "Energy and commodity-driven names"

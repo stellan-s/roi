@@ -189,10 +189,30 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
     daily_returns = results_df['daily_return'].fillna(0)
     portfolio_values = results_df['portfolio_value']
 
+    # DEBUG: Add validation checks for impossible results
+    print(f"DEBUG: Portfolio values range: {portfolio_values.min():.2f} to {portfolio_values.max():.2f}")
+    print(f"DEBUG: Daily returns range: {daily_returns.min():.6f} to {daily_returns.max():.6f}")
+    print(f"DEBUG: Daily returns std: {daily_returns.std():.6f}")
+    print(f"DEBUG: Non-zero daily returns: {(daily_returns != 0).sum()}/{len(daily_returns)}")
+
     total_return = (portfolio_values.iloc[-1] / portfolio_values.iloc[0]) - 1
     annualized_return = (1 + total_return) ** (252 / len(daily_returns)) - 1
     volatility = daily_returns.std() * np.sqrt(252)
-    sharpe_ratio = annualized_return / volatility if volatility > 0 else 0
+    risk_free_rate = 0.02  # 2% annual risk-free rate
+
+    # CRITICAL FIX: Add minimum volatility threshold to prevent division by near-zero
+    min_volatility = 0.01  # 1% minimum annual volatility (extremely conservative)
+    volatility = max(volatility, min_volatility)
+
+    sharpe_ratio = (annualized_return - risk_free_rate) / volatility
+
+    print(f"DEBUG: Final volatility: {volatility:.6f}, Sharpe ratio: {sharpe_ratio:.2f}")
+
+    # VALIDATION: Flag suspicious results
+    if sharpe_ratio > 3.0:
+        print(f"⚠️  WARNING: Suspiciously high Sharpe ratio ({sharpe_ratio:.2f}) - possible calculation error")
+    if volatility < 0.05:
+        print(f"⚠️  WARNING: Suspiciously low volatility ({volatility:.2f}) - possible data issue")
 
     # Calculate max drawdown
     running_max = portfolio_values.expanding().max()

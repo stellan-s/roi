@@ -113,9 +113,10 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                                senti: pd.DataFrame,
                                prices: Optional[pd.DataFrame] = None,
                                vix_data: Optional[pd.DataFrame] = None,
-                               metals_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                               metals_data: Optional[pd.DataFrame] = None,
+                               macro_data: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
         """
-        Enhanced Bayesian scoring with adaptive parameters and VIX integration.
+        Enhanced Bayesian scoring with adaptive parameters, VIX integration, and macro indicators.
         Uses learned parameters instead of hardcoded config values.
         """
         if not self.is_calibrated or not self.estimated_params:
@@ -130,7 +131,10 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         recommendations = self.bayesian_score(adapted_tech, adapted_senti, prices, vix_data, metals_data)
 
         # Apply adaptive regime adjustments
-        final_recommendations = self._apply_adaptive_regime_adjustments(recommendations, prices)
+        regime_adjusted = self._apply_adaptive_regime_adjustments(recommendations, prices)
+
+        # NEW: Apply macro indicator adjustments
+        final_recommendations = self._apply_macro_adjustments(regime_adjusted, macro_data)
 
         print(f"✅ Applied adaptive parameters to {len(final_recommendations)} recommendations")
         return final_recommendations
@@ -258,6 +262,90 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                         adapted.loc[mask, 'momentum_weight'] *= momentum_adj
 
         print(f"🎯 Applied adaptive regime adjustments")
+        return adapted
+
+    def _apply_macro_adjustments(self, recommendations: pd.DataFrame,
+                                macro_data: Optional[Dict[str, pd.DataFrame]]) -> pd.DataFrame:
+        """Apply macro indicator adjustments to recommendations based on factor profiles."""
+        if macro_data is None or recommendations.empty:
+            return recommendations
+
+        adapted = recommendations.copy()
+
+        # Get latest macro indicators
+        macro_signals = {}
+        for indicator_name, data in macro_data.items():
+            if not data.empty:
+                latest = data.iloc[-1]
+                macro_signals[indicator_name] = latest
+
+        print(f"📊 Processing macro adjustments with {len(macro_signals)} indicators")
+
+        # Apply macro adjustments using factor profiles
+        factor_profiles = self.config.get('stock_factor_profiles', {}).get('categories', {})
+
+        macro_adjustments_applied = 0
+        for _, row in recommendations.iterrows():
+            ticker = row['ticker']
+
+            # Find which factor category this stock belongs to
+            stock_category = None
+            for category_name, category_config in factor_profiles.items():
+                if ticker in category_config.get('stocks', []):
+                    stock_category = category_name
+                    break
+
+            if not stock_category:
+                continue  # No factor profile for this stock
+
+            # Get macro sensitivities for this category
+            macro_sensitivities = factor_profiles[stock_category].get('macro_sensitivities', {})
+            if not macro_sensitivities:
+                continue
+
+            # Calculate macro adjustment factor
+            total_macro_adjustment = 0.0
+            active_adjustments = 0
+
+            for macro_indicator, sensitivity in macro_sensitivities.items():
+                if macro_indicator in macro_signals:
+                    # Get the macro signal strength (normalized change)
+                    macro_signal = macro_signals[macro_indicator]
+
+                    # Calculate signal strength based on indicator type
+                    if macro_indicator == 'treasury_10y':
+                        # Interest rate change signal
+                        signal_strength = macro_signal.get('rate_change_5d', 0)
+                    elif macro_indicator in ['dollar_index', 'oil', 'eur_sek']:
+                        # Price change signals
+                        signal_strength = macro_signal.get('change_5d', 0)
+                    else:
+                        continue
+
+                    # Apply sensitivity weighting
+                    weighted_signal = signal_strength * sensitivity
+                    total_macro_adjustment += weighted_signal
+                    active_adjustments += 1
+
+            if active_adjustments > 0:
+                # Average the adjustments and apply as multiplier
+                avg_adjustment = total_macro_adjustment / active_adjustments
+                macro_multiplier = 1.0 + np.clip(avg_adjustment, -0.2, 0.2)  # Limit to ±20%
+
+                # Apply to key signals
+                mask = adapted['ticker'] == ticker
+                if 'expected_return' in adapted.columns:
+                    adapted.loc[mask, 'expected_return'] *= macro_multiplier
+                if 'prob_positive' in adapted.columns:
+                    # Adjust probability more conservatively
+                    prob_adjustment = 0.5 + (macro_multiplier - 1.0) * 0.5
+                    current_prob = adapted.loc[mask, 'prob_positive'].values[0]
+                    new_prob = np.clip(current_prob * prob_adjustment, 0.1, 0.9)
+                    adapted.loc[mask, 'prob_positive'] = new_prob
+
+                macro_adjustments_applied += 1
+
+        print(f"📈 Applied macro adjustments to {macro_adjustments_applied} stocks")
         return adapted
 
     def get_learning_summary(self) -> Dict:

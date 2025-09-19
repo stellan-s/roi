@@ -469,7 +469,19 @@ class BacktestEngine:
         total_return = (simulation_results['final_portfolio_value'] / 100000) - 1
         annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
         volatility = returns.std() * np.sqrt(252)
-        sharpe_ratio = annualized_return / volatility if volatility > 0 else 0
+        risk_free_rate = 0.02  # 2% annual risk-free rate
+
+        # CRITICAL FIX: Add minimum volatility threshold to prevent division by near-zero
+        min_volatility = 0.01  # 1% minimum annual volatility
+        volatility = max(volatility, min_volatility)
+
+        sharpe_ratio = (annualized_return - risk_free_rate) / volatility
+
+        # VALIDATION: Flag suspicious results
+        if sharpe_ratio > 3.0:
+            print(f"⚠️  WARNING: Suspiciously high Sharpe ratio ({sharpe_ratio:.2f}) in framework.py")
+        if volatility < 0.05:
+            print(f"⚠️  WARNING: Suspiciously low volatility ({volatility:.2f}) in framework.py")
 
         # Drawdown calculation
         cumulative_returns = (1 + returns).cumprod()

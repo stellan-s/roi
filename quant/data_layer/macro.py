@@ -345,11 +345,207 @@ def fetch_macro_indicators(cache_dir: str, lookback_days: int = 500) -> Dict[str
     else:
         print("❌ Precious Metals: No data available")
 
-    # TODO: Add more indicators (USD/SEK, oil, etc.)
-    # indicators['usd_sek'] = fetch_currency('USDSEK=X', cache_dir, lookback_days)
-    # indicators['oil'] = fetch_commodity('CL=F', cache_dir, lookback_days)
+    # Fetch additional macro indicators
+    print("📊 Fetching additional macro indicators...")
+
+    # Interest rates (easy via Yahoo Finance)
+    try:
+        indicators['treasury_10y'] = fetch_interest_rate('^TNX', cache_dir, lookback_days, 'US_10Y_Treasury')
+        print(f"✅ US 10Y Treasury: {len(indicators['treasury_10y'])} data points")
+    except Exception as e:
+        print(f"❌ US 10Y Treasury failed: {e}")
+
+    # Dollar Index
+    try:
+        indicators['dollar_index'] = fetch_currency_index('DX-Y.NYB', cache_dir, lookback_days, 'USD_Index')
+        print(f"✅ Dollar Index: {len(indicators['dollar_index'])} data points")
+    except Exception as e:
+        print(f"❌ Dollar Index failed: {e}")
+
+    # Oil prices
+    try:
+        indicators['oil'] = fetch_commodity('CL=F', cache_dir, lookback_days, 'WTI_Oil')
+        print(f"✅ Oil (WTI): {len(indicators['oil'])} data points")
+    except Exception as e:
+        print(f"❌ Oil prices failed: {e}")
+
+    # EUR/SEK (for Swedish stocks)
+    try:
+        indicators['eur_sek'] = fetch_currency('EURSEK=X', cache_dir, lookback_days, 'EUR_SEK')
+        print(f"✅ EUR/SEK: {len(indicators['eur_sek'])} data points")
+    except Exception as e:
+        print(f"❌ EUR/SEK failed: {e}")
 
     return indicators
+
+
+def fetch_interest_rate(symbol: str, cache_dir: str, lookback_days: int, name: str) -> pd.DataFrame:
+    """Fetch interest rate data (Treasury yields, etc.)"""
+    cache_path = Path(cache_dir) / "macro" / f"{name.lower()}_data.parquet"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Check cache freshness
+    if cache_path.exists():
+        try:
+            cached_data = pd.read_parquet(cache_path)
+            cached_data['date'] = pd.to_datetime(cached_data['date'])
+            latest_cached = cached_data['date'].max()
+            today = pd.Timestamp.now().date()
+
+            if latest_cached.date() >= today - timedelta(days=1):
+                print(f"📁 Using cached {name} data (latest: {latest_cached.date()})")
+                return cached_data[cached_data['date'] >= pd.Timestamp.now() - timedelta(days=lookback_days)]
+        except Exception as e:
+            print(f"⚠️ Cache read failed for {name}: {e}")
+
+    # Fetch fresh data
+    try:
+        print(f"🌐 Fetching {name} data from Yahoo Finance...")
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=f"{lookback_days}d")
+
+        if hist.empty:
+            print(f"❌ No {name} data available")
+            return pd.DataFrame()
+
+        # Process interest rate data
+        df = pd.DataFrame({
+            'date': hist.index,
+            'rate': hist['Close'],
+            'rate_change_1d': hist['Close'].pct_change(),
+            'rate_change_5d': hist['Close'].pct_change(5),
+            'rate_sma_10': hist['Close'].rolling(10).mean(),
+            'rate_sma_30': hist['Close'].rolling(30).mean()
+        })
+
+        df = df.dropna().reset_index(drop=True)
+        df['rate_vs_sma_10'] = (df['rate'] - df['rate_sma_10']) / df['rate_sma_10']
+        df['rate_regime'] = np.where(df['rate'] > df['rate_sma_30'], 'rising', 'falling')
+
+        # Cache the data
+        df.to_parquet(cache_path, index=False)
+        print(f"💾 Cached {len(df)} {name} records")
+        return df
+
+    except Exception as e:
+        print(f"❌ Failed to fetch {name}: {e}")
+        return pd.DataFrame()
+
+
+def fetch_currency_index(symbol: str, cache_dir: str, lookback_days: int, name: str) -> pd.DataFrame:
+    """Fetch currency index data (Dollar Index, etc.)"""
+    cache_path = Path(cache_dir) / "macro" / f"{name.lower()}_data.parquet"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Check cache freshness
+    if cache_path.exists():
+        try:
+            cached_data = pd.read_parquet(cache_path)
+            cached_data['date'] = pd.to_datetime(cached_data['date'])
+            latest_cached = cached_data['date'].max()
+            today = pd.Timestamp.now().date()
+
+            if latest_cached.date() >= today - timedelta(days=1):
+                print(f"📁 Using cached {name} data (latest: {latest_cached.date()})")
+                return cached_data[cached_data['date'] >= pd.Timestamp.now() - timedelta(days=lookback_days)]
+        except Exception as e:
+            print(f"⚠️ Cache read failed for {name}: {e}")
+
+    # Fetch fresh data
+    try:
+        print(f"🌐 Fetching {name} data from Yahoo Finance...")
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=f"{lookback_days}d")
+
+        if hist.empty:
+            print(f"❌ No {name} data available")
+            return pd.DataFrame()
+
+        # Process currency data
+        df = pd.DataFrame({
+            'date': hist.index,
+            'price': hist['Close'],
+            'change_1d': hist['Close'].pct_change(),
+            'change_5d': hist['Close'].pct_change(5),
+            'sma_20': hist['Close'].rolling(20).mean(),
+            'volatility_20d': hist['Close'].pct_change().rolling(20).std() * np.sqrt(252)
+        })
+
+        df = df.dropna().reset_index(drop=True)
+        df['vs_sma_20'] = (df['price'] - df['sma_20']) / df['sma_20']
+        df['trend'] = np.where(df['change_5d'] > 0.02, 'strengthening',
+                      np.where(df['change_5d'] < -0.02, 'weakening', 'stable'))
+
+        # Cache the data
+        df.to_parquet(cache_path, index=False)
+        print(f"💾 Cached {len(df)} {name} records")
+        return df
+
+    except Exception as e:
+        print(f"❌ Failed to fetch {name}: {e}")
+        return pd.DataFrame()
+
+
+def fetch_commodity(symbol: str, cache_dir: str, lookback_days: int, name: str) -> pd.DataFrame:
+    """Fetch commodity price data (Oil, etc.)"""
+    cache_path = Path(cache_dir) / "macro" / f"{name.lower()}_data.parquet"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Check cache freshness
+    if cache_path.exists():
+        try:
+            cached_data = pd.read_parquet(cache_path)
+            cached_data['date'] = pd.to_datetime(cached_data['date'])
+            latest_cached = cached_data['date'].max()
+            today = pd.Timestamp.now().date()
+
+            if latest_cached.date() >= today - timedelta(days=1):
+                print(f"📁 Using cached {name} data (latest: {latest_cached.date()})")
+                return cached_data[cached_data['date'] >= pd.Timestamp.now() - timedelta(days=lookback_days)]
+        except Exception as e:
+            print(f"⚠️ Cache read failed for {name}: {e}")
+
+    # Fetch fresh data
+    try:
+        print(f"🌐 Fetching {name} data from Yahoo Finance...")
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=f"{lookback_days}d")
+
+        if hist.empty:
+            print(f"❌ No {name} data available")
+            return pd.DataFrame()
+
+        # Process commodity data
+        df = pd.DataFrame({
+            'date': hist.index,
+            'price': hist['Close'],
+            'change_1d': hist['Close'].pct_change(),
+            'change_1w': hist['Close'].pct_change(5),
+            'change_1m': hist['Close'].pct_change(21),
+            'sma_50': hist['Close'].rolling(50).mean(),
+            'volatility_30d': hist['Close'].pct_change().rolling(30).std() * np.sqrt(252)
+        })
+
+        df = df.dropna().reset_index(drop=True)
+        df['vs_sma_50'] = (df['price'] - df['sma_50']) / df['sma_50']
+
+        # Commodity-specific regimes
+        df['trend_regime'] = np.where(df['vs_sma_50'] > 0.1, 'bull_commodity',
+                             np.where(df['vs_sma_50'] < -0.1, 'bear_commodity', 'neutral_commodity'))
+
+        # Cache the data
+        df.to_parquet(cache_path, index=False)
+        print(f"💾 Cached {len(df)} {name} records")
+        return df
+
+    except Exception as e:
+        print(f"❌ Failed to fetch {name}: {e}")
+        return pd.DataFrame()
+
+
+def fetch_currency(symbol: str, cache_dir: str, lookback_days: int, name: str) -> pd.DataFrame:
+    """Fetch currency pair data (EUR/SEK, etc.)"""
+    return fetch_currency_index(symbol, cache_dir, lookback_days, name)  # Same logic
 
 
 def get_latest_vix_regime(vix_data: pd.DataFrame) -> Dict:

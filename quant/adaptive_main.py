@@ -13,7 +13,7 @@ from typing import Dict, Optional
 
 from quant.data_layer.prices import fetch_prices
 from quant.data_layer.news import fetch_news
-from quant.data_layer.macro import fetch_vix, fetch_precious_metals_sentiment
+from quant.data_layer.macro import fetch_vix, fetch_precious_metals_sentiment, fetch_macro_indicators
 from quant.features.technical import compute_technical_features
 from quant.features.sentiment import naive_sentiment
 from quant.bayesian.adaptive_integration import AdaptiveBayesianEngine
@@ -210,6 +210,12 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
         lookback_days=config['data']['lookback_days']
     )
 
+    # NEW: Fetch comprehensive macro indicators
+    macro_data = fetch_macro_indicators(
+        cache_dir=config['data']['cache_dir'],
+        lookback_days=config['data']['lookback_days']
+    )
+
     # Compute current features
     tech = compute_technical_features(
         prices,
@@ -219,11 +225,11 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
 
     senti = naive_sentiment(news, universe)
 
-    # Generate raw recommendations using adaptive Bayesian engine with VIX and metals
+    # Generate raw recommendations using adaptive Bayesian engine with VIX, metals, and macro
     # CRITICAL FIX: Use only latest data per ticker to prevent data explosion
     latest_tech = tech.groupby('ticker').tail(1)
     print(f"🔍 Using latest tech data: {latest_tech.shape} (from {tech.shape} total)")
-    recommendations = engine.bayesian_score_adaptive(latest_tech, senti, prices, vix_data, metals_data)
+    recommendations = engine.bayesian_score_adaptive(latest_tech, senti, prices, vix_data, metals_data, macro_data)
 
     # Apply portfolio rules for simulated execution
     portfolio_mgr = PortfolioManager(config)
@@ -260,7 +266,7 @@ def run_daily_analysis(config: Dict, engine: AdaptiveBayesianEngine) -> tuple:
 
     _log_recommendations(final_decisions, executed_trades, config['data']['cache_dir'])
 
-    return final_decisions, portfolio_summary
+    return final_decisions, portfolio_summary, macro_data
 
 def main():
     """
@@ -314,7 +320,7 @@ def main():
         print("Factor profiles disabled or not configured")
 
     # Run daily analysis
-    recommendations, portfolio_summary = run_daily_analysis(config, engine)
+    recommendations, portfolio_summary, macro_data = run_daily_analysis(config, engine)
 
     # Generate report
     output_dir = config['run']['outdir']
@@ -323,7 +329,8 @@ def main():
         recommendations,
         output_dir,
         portfolio_summary,
-        engine
+        engine,
+        macro_data
     )
 
     print(f"\nReport generated: {report_path}")

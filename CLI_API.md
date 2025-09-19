@@ -121,6 +121,19 @@ python -m quant.backtesting.cli interactive
 - Report generation prompts
 - Error handling with user-friendly messages
 
+### 5. Portfolio Dashboard (`quant.cli.dashboard`)
+
+**Command:** `python -m quant.cli.dashboard`
+
+**Description:** ANSI terminal dashboard summarising the current market regime, live portfolio snapshot, and latest buy/sell recommendations.
+
+**Options:**
+- `--state PATH` – Portfolio state JSON (default: `data/portfolio/current_state.json`)
+- `--recommendations PATH` – Recommendations parquet (default: newest file in `data/recommendation_logs/`)
+- `--limit INT` – Number of holdings to display (default: 8)
+- `--bar-width INT` – Width of the position weight bars (default: 32)
+- `--rec-limit INT` – Buy/Sell entries per category (default: 5)
+
 ## Configuration System
 
 ### Primary Configuration Files
@@ -233,6 +246,10 @@ python -m quant.backtesting.cli single --start 2024-01-01 --end 2024-03-31 --eng
 
 # Interactive mode
 python -m quant.backtesting.cli interactive
+
+# ANSI dashboard for portfolio snapshot, regime, and recommendations
+python -m quant.cli.dashboard
+python -m quant.cli.dashboard --state data/backtest_portfolio_adaptive/current_state.json --limit 5 --rec-limit 3
 ```
 
 ## Output Files

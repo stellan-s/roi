@@ -1,0 +1,156 @@
+# Modular Trading System Configuration
+# Each module can be enabled/disabled and configured independently
+
+modules:
+  # Technical Analysis Module
+  technical_indicators:
+    enabled: true
+    description: "Computes technical analysis indicators from price data"
+
+    # SMA Configuration
+    sma_enabled: true
+    sma_short: 20          # Short SMA period
+    sma_long: 50           # Long SMA period
+
+    # Momentum Configuration
+    momentum_enabled: true
+    momentum_window: 21     # Momentum lookback window
+
+    # RSI Configuration
+    rsi_enabled: false      # Disabled by default (can be resource intensive)
+    rsi_window: 14
+
+    # Volume Analysis
+    volume_trend_enabled: true
+    volume_window: 20
+
+    # Volatility Analysis
+    volatility_enabled: true
+    volatility_window: 20
+
+    # Data Quality
+    min_data_points: 50     # Minimum data points required per ticker
+
+  # Sentiment Analysis Module
+  sentiment_analysis:
+    enabled: true
+    description: "Analyzes news sentiment for market signals"
+
+    # News Sources
+    news_sources:
+      - "https://news.cision.com/se/rss/all"
+      - "https://www.di.se/rss/"
+      - "https://finance.yahoo.com/news/rssindex"
+      - "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+
+    # Sentiment Processing
+    sentiment_method: "naive"  # "naive" or "llm"
+    sentiment_window: 7        # Days to aggregate sentiment
+
+    # Signal Generation
+    sentiment_threshold: 0.1   # Minimum sentiment strength
+    confidence_threshold: 0.5
+
+  # Regime Detection Module
+  regime_detection:
+    enabled: true
+    description: "Detects market regimes (Bull/Bear/Neutral)"
+
+    # Detection Parameters
+    lookback_days: 60
+    volatility_window: 20
+    trend_window: 50
+
+    # VIX Integration
+    vix_integration: true
+    vix_thresholds:
+      low_fear: 20
+      moderate_fear: 30
+      high_fear: 40
+
+    # Regime Thresholds
+    thresholds:
+      volatility_low: 0.12
+      volatility_high: 0.30
+      return_bull: 0.003
+      return_bear: -0.003
+      drawdown_bear: -0.15
+
+  # Risk Management Module
+  risk_management:
+    enabled: true
+    description: "Computes risk metrics and position sizing"
+
+    # Position Sizing
+    max_position_size: 0.25    # 25% max per position
+    min_positions: 3
+    max_positions: 6
+
+    # Risk Metrics
+    var_confidence: 0.95       # VaR confidence level
+    tail_risk_enabled: true
+    monte_carlo_runs: 1000
+
+    # Risk Thresholds
+    max_portfolio_var: 0.02    # 2% daily VaR limit
+    max_concentration: 0.60    # 60% max factor concentration
+
+  # Portfolio Management Module
+  portfolio_management:
+    enabled: true
+    description: "Manages portfolio allocation and rebalancing"
+
+    # Allocation Strategy
+    allocation_method: "risk_budgeting"  # "equal_weight", "risk_budgeting", "optimized"
+    rebalance_frequency: "daily"
+
+    # Transaction Costs
+    transaction_cost: 0.001    # 10bp transaction cost
+    min_trade_size: 1000       # Minimum trade size
+
+    # Constraints
+    cash_buffer: 0.05          # 5% cash buffer
+    turnover_limit: 2.0        # Maximum annual turnover
+
+# Pipeline Configuration
+pipeline:
+  # Execution Order (automatically resolved based on dependencies)
+  # technical_indicators -> sentiment_analysis -> regime_detection -> risk_management -> portfolio_management
+
+  # Error Handling
+  continue_on_error: false     # Stop pipeline if any module fails
+  retry_failed_modules: true
+  max_retries: 2
+
+  # Performance Monitoring
+  log_performance: true
+  performance_threshold_ms: 1000  # Warn if module takes >1s
+
+  # Health Checks
+  health_check_interval: 3600  # Health check every hour (seconds)
+  alert_on_degraded: true
+
+# Optimization Configuration
+optimization:
+  enabled: false  # Enable for auto-optimization
+
+  # Optimization Parameters
+  duration_hours: 24
+  max_configurations: 100
+  target_metric: "sharpe_ratio"  # "sharpe_ratio", "return", "max_drawdown"
+
+  # Configuration Generation
+  mutation_rate: 0.3            # 30% chance to modify each parameter
+  parameter_ranges:
+    sma_short: [10, 30]
+    sma_long: [40, 80]
+    momentum_window: [14, 42]
+    max_position_size: [0.15, 0.35]
+
+  # Validation
+  out_of_sample_validation: true
+  validation_split: 0.3         # 30% for out-of-sample testing
+
+  # Results
+  save_all_results: true
+  results_dir: "optimization_results"
