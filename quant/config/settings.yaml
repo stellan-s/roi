@@ -259,6 +259,7 @@ policy:
   regime_diversification: true      # Require regime diversification
   min_portfolio_positions: 6        # Minimum 3 active positions
   bear_market_allocation: 0.85      # Max 85% allocation in bear markets (increased from 60%)
+  target_total_allocation: 0.85     # Target overall capital deployment (~85%)
 
   # Heavy-tail risk controls
   max_tail_risk_allocation: 0.30    # Max 30% in high-risk positions (tail_risk > 0.7)

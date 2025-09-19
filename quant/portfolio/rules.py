@@ -15,6 +15,7 @@ class PortfolioConstraints:
     trade_cost_bps: int = 15                    # Transaction costs
     min_portfolio_positions: int = 3            # At least 3 active positions
     bear_market_allocation: float = 0.60        # Max allocation in bear markets
+    target_total_allocation: float = 0.85       # Target total deployed capital
 
 @dataclass
 class PortfolioPosition:
@@ -62,7 +63,8 @@ class PortfolioManager:
                 pre_earnings_freeze_days=policy.get('pre_earnings_freeze_days', 5),
                 trade_cost_bps=policy.get('trade_cost_bps', 3),  # Use lower default from config
                 min_portfolio_positions=policy.get('min_portfolio_positions', 3),
-                bear_market_allocation=policy.get('bear_market_allocation', 0.85)  # Use updated default
+                bear_market_allocation=policy.get('bear_market_allocation', 0.85),
+                target_total_allocation=policy.get('target_total_allocation', 0.85)
             )
         else:
             self.constraints = PortfolioConstraints()
@@ -223,7 +225,7 @@ class PortfolioManager:
             return positions
 
         # Kelly-inspired position sizing with regime and tail-risk adjustment
-        total_weight_budget = 1.0
+        total_weight_budget = min(self.constraints.target_total_allocation, 1.0)
         min_position_size = 0.02  # Minimum 2% per position (meaningful size)
         max_positions = int(total_weight_budget / min_position_size)  # Max 50 positions at 2% each
 
@@ -288,10 +290,29 @@ class PortfolioManager:
 
         # Normalise if the total weight exceeds the budget
         total_weight = sum(pos.weight for pos in active_buys if pos.weight > 0)
-        if total_weight > total_weight_budget:
+        if total_weight > 0:
+            desired = min(self.constraints.target_total_allocation, total_weight_budget)
+            scale_factor = desired / total_weight if desired > 0 else 1.0
+
+            if scale_factor != 1.0:
+                for pos in active_buys:
+                    if pos.weight > 0:
+                        pos.weight *= scale_factor
+
+            # Enforce position cap after scaling
+            capped = False
             for pos in active_buys:
-                if pos.weight > 0:
-                    pos.weight = (pos.weight / total_weight) * total_weight_budget
+                if pos.weight > self.constraints.max_weight_per_stock:
+                    pos.weight = self.constraints.max_weight_per_stock
+                    capped = True
+
+            if capped:
+                capped_total = sum(pos.weight for pos in active_buys if pos.weight > 0)
+                if capped_total > 0 and desired > 0:
+                    rescale = desired / capped_total
+                    for pos in active_buys:
+                        if pos.weight > 0:
+                            pos.weight *= rescale
 
         print(f"📊 Portfolio allocation: {sum(pos.weight for pos in active_buys if pos.weight > 0):.1%} across {len([p for p in active_buys if p.weight > 0])} positions")
 

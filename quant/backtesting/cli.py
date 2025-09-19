@@ -3,10 +3,13 @@
 import argparse
 from pathlib import Path
 
-from quant.adaptive_main import load_configuration
-from quant.backtesting.framework import BacktestEngine
-from quant.bayesian.adaptive_integration import AdaptiveBayesianEngine
-from quant.bayesian.integration import BayesianPolicyEngine
+from quant.adaptive_main import load_configuration, prepare_historical_data
+from quant.backtest_runner import (
+    create_adaptive_engine,
+    create_static_engine,
+    run_backtest_period,
+)
+from quant.backtesting.framework import ComparisonResults, BacktestResults
 
 
 def _print_single_run(results):
@@ -51,36 +54,50 @@ def _resolve_report_path(path_str: str) -> Path:
 
 def _run_single(args):
     config = load_configuration()
-    engine = BacktestEngine(config)
+
+    # Prepare historical data for calibration when needed
+    prices_hist, sentiment_hist, tech_hist, returns_hist = prepare_historical_data(config)
 
     if args.engine == "adaptive":
-        factory = lambda cfg: AdaptiveBayesianEngine(cfg)
+        engine = create_adaptive_engine(config, prices_hist, sentiment_hist, tech_hist, returns_hist)
     else:
-        factory = lambda cfg: BayesianPolicyEngine(cfg)
+        engine = create_static_engine(config)
 
-    result = engine.run_single_backtest(
-        start_date=args.start,
-        end_date=args.end,
-        engine_factory=factory,
-        engine_type=args.engine,
-    )
-
+    result = run_backtest_period(engine, config, args.start, args.end, args.engine)
     _print_single_run(result)
 
     if args.report:
-        report_path = _resolve_report_path(args.report)
-        engine.generate_backtest_report(result, str(report_path))
+        from quant.backtesting.framework import BacktestEngine
+        BacktestEngine(config).generate_backtest_report(result, str(_resolve_report_path(args.report)))
 
 
 def _run_compare(args):
     config = load_configuration()
-    engine = BacktestEngine(config)
-    comparison = engine.compare_adaptive_vs_static(args.start, args.end)
+    prices_hist, sentiment_hist, tech_hist, returns_hist = prepare_historical_data(config)
+
+    adaptive_engine = create_adaptive_engine(config, prices_hist, sentiment_hist, tech_hist, returns_hist)
+    static_engine = create_static_engine(config)
+
+    adaptive_results = run_backtest_period(adaptive_engine, config, args.start, args.end, "adaptive")
+    static_results = run_backtest_period(static_engine, config, args.start, args.end, "static")
+
+    comparison = ComparisonResults(
+        adaptive_results=adaptive_results,
+        static_results=static_results,
+        return_improvement=adaptive_results.total_return - static_results.total_return,
+        sharpe_improvement=adaptive_results.sharpe_ratio - static_results.sharpe_ratio,
+        drawdown_improvement=static_results.max_drawdown - adaptive_results.max_drawdown,
+        tail_risk_improvement=0.0,
+        p_value_returns=1.0,
+        confidence_interval=(0.0, 0.0),
+    )
     _print_comparison(comparison)
 
     if args.report:
-        report_path = _resolve_report_path(args.report)
-        engine.generate_comparison_report(comparison, str(report_path))
+        from quant.backtesting.framework import BacktestEngine
+        BacktestEngine(config).generate_comparison_report(
+            comparison, str(_resolve_report_path(args.report))
+        )
 
 
 def _prompt_date(prompt: str) -> str:

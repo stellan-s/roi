@@ -466,14 +466,29 @@ class RegimeDetector:
         explanation = f"**{regime_def.name}** ({prob_pct:.0f}% confidence)\n"
         explanation += f"{regime_def.description}\n\n"
 
-        # Market context
-        features = diagnostics["market_features"]
-        explanation += "**Market Context:**\n"
-        explanation += f"- Volatility: {features['volatility_20d']*100:.1f}% ({regime_def.volatility_level})\n"
-        explanation += f"- 20-day return: {features['return_20d']*100:+.1f}%\n"
-        explanation += f"- Position vs SMA-long: {features['price_vs_sma_long']*100:+.1f}%\n"
-        explanation += f"- Drawdown from high: {features['drawdown']*100:.1f}%\n"
-        explanation += f"- Positive days (20d): {features['positive_days_pct']*100:.0f}%\n\n"
+        # Market context (guard against missing diagnostics)
+        features = diagnostics.get("market_features") if diagnostics else None
+        if features is not None:
+            # Handle both DataFrame and dict formats
+            if hasattr(features, 'empty') and not features.empty:
+                explanation += "**Market Context:**\n"
+                explanation += f"- Volatility: {features.get('volatility_20d', 0.0)*100:.1f}% ({regime_def.volatility_level})\n"
+                explanation += f"- 20-day return: {features.get('ret_20d', 0.0)*100:+.1f}%\n"
+                explanation += f"- Position vs SMA-long: {features.get('price_vs_sma_long', 0.0)*100:+.1f}%\n"
+            elif isinstance(features, dict) and features:
+                explanation += "**Market Context:**\n"
+                explanation += f"- Volatility: {features.get('volatility_20d', 0.0)*100:.1f}% ({regime_def.volatility_level})\n"
+                explanation += f"- 20-day return: {features.get('ret_20d', 0.0)*100:+.1f}%\n"
+                explanation += f"- Position vs SMA-long: {features.get('price_vs_sma_long', 0.0)*100:+.1f}%\n"
+                explanation += f"- Drawdown from high: {features.get('drawdown', 0.0)*100:.1f}%\n"
+                explanation += f"- Positive days (20d): {features.get('positive_days_pct', 0.0)*100:.0f}%\n\n"
+
+            # Add remaining context for DataFrame format
+            if hasattr(features, 'empty') and not features.empty:
+                explanation += f"- Drawdown from high: {features.get('drawdown', 0.0)*100:.1f}%\n"
+                explanation += f"- Positive days (20d): {features.get('positive_days_pct', 0.0)*100:.0f}%\n\n"
+        else:
+            explanation += "**Market Context:**\nNo market features available (insufficient data).\n\n"
 
         # VIX Analysis (if available)
         if vix_data is not None and not vix_data.empty:

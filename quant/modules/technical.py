@@ -45,6 +45,14 @@ class TechnicalIndicatorsModule(BaseModule):
         if not all(col in prices_df.columns for col in required_columns):
             raise ValueError(f"Price data must contain columns: {required_columns}")
 
+        # Ensure optional columns exist; fall back to sensible defaults when missing
+        if 'volume' not in prices_df.columns:
+            prices_df['volume'] = 0.0
+        if 'high' not in prices_df.columns:
+            prices_df['high'] = prices_df['close']
+        if 'low' not in prices_df.columns:
+            prices_df['low'] = prices_df['close']
+
         if len(prices_df) == 0:
             return ModuleOutput(
                 data={"technical_signals": {}, "technical_features": pd.DataFrame()},

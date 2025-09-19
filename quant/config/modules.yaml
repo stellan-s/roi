@@ -111,6 +111,7 @@ modules:
     # Constraints
     cash_buffer: 0.05          # 5% cash buffer
     turnover_limit: 2.0        # Maximum annual turnover
+    target_total_allocation: 0.85  # Aim to deploy ~85% of capital
 
 # Pipeline Configuration
 pipeline:

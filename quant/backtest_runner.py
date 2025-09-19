@@ -196,9 +196,21 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
     print(f"DEBUG: Non-zero daily returns: {(daily_returns != 0).sum()}/{len(daily_returns)}")
 
     total_return = (portfolio_values.iloc[-1] / portfolio_values.iloc[0]) - 1
-    annualized_return = (1 + total_return) ** (252 / len(daily_returns)) - 1
+
+    # Fix: Use actual trading days, not length of returns array
+    start_date = pd.to_datetime(results_df['date'].iloc[0])
+    end_date = pd.to_datetime(results_df['date'].iloc[-1])
+    actual_days = (end_date - start_date).days
+
+    annualized_return = (1 + total_return) ** (252 / actual_days) - 1
     volatility = daily_returns.std() * np.sqrt(252)
     risk_free_rate = 0.02  # 2% annual risk-free rate
+
+    # DEBUG: Show annualization calculation
+    print(f"DEBUG: Total return: {total_return:.6f} ({total_return*100:.3f}%)")
+    print(f"DEBUG: Actual days: {actual_days}, Daily returns length: {len(daily_returns)}")
+    print(f"DEBUG: Annualization factor: {252/actual_days:.3f}")
+    print(f"DEBUG: Annualized return: {annualized_return:.6f} ({annualized_return*100:.2f}%)")
 
     # CRITICAL FIX: Add minimum volatility threshold to prevent division by near-zero
     min_volatility = 0.01  # 1% minimum annual volatility (extremely conservative)
