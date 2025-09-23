@@ -8,7 +8,7 @@ for data-driven parameter estimation and calibration.
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from quant.data_layer.prices import fetch_prices
 from quant.data_layer.news import fetch_news
@@ -155,7 +155,7 @@ def fetch_current_data(config: Dict) -> Dict:
     }
 
 
-def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: AdaptiveBayesianEngine) -> Dict:
+def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: AdaptiveBayesianEngine, config: Dict) -> Tuple[Dict, PortfolioTracker]:
     """Execute the adaptive modular pipeline with calibrated engine."""
     print("\n🔄 Executing adaptive modular pipeline...")
 
@@ -322,11 +322,22 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
         candidates_df = pd.DataFrame(candidate_positions)
     current_prices = data['prices'].groupby('ticker').last().reset_index()[['ticker', 'close']]
 
+    # Load current portfolio state to avoid duplicate buying
+    portfolio_tracker = PortfolioTracker(config['data']['cache_dir'] + "/portfolio")
+    current_state = portfolio_tracker.get_portfolio_summary()
+    current_holdings = {
+        holding.ticker: {
+            'shares': holding.shares,
+            'avg_cost': holding.avg_cost,
+            'market_value': holding.market_value
+        } for holding in (portfolio_tracker.current_state.holdings if portfolio_tracker.current_state else [])
+    }
+
     portfolio_module = PortfolioManagementModule(module_config['portfolio_management'])
     portfolio_result = portfolio_module.process({
         'candidate_positions': candidates_df,
         'current_prices': current_prices,
-        'current_portfolio': {}  # No existing portfolio for now
+        'current_portfolio': current_holdings
     })
     results['portfolio_management'] = portfolio_result
 
@@ -339,7 +350,7 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
     print(f"   Average confidence: {avg_confidence:.2f}")
     print(f"   Modules executed: {len(results)}")
 
-    return results
+    return results, portfolio_tracker
 
 
 def create_adaptive_recommendations(results: Dict, data: Dict, adaptive_engine: AdaptiveBayesianEngine) -> pd.DataFrame:
@@ -422,15 +433,15 @@ def create_adaptive_recommendations(results: Dict, data: Dict, adaptive_engine: 
     return recommendations_df
 
 
-def run_portfolio_management(recommendations: pd.DataFrame, config: Dict) -> List[Dict]:
+def run_portfolio_management(recommendations: pd.DataFrame, config: Dict,
+                            portfolio_tracker: PortfolioTracker = None) -> List[Dict]:
     """Execute portfolio management with adaptive recommendations."""
     print("\n💰 Portfolio management with adaptive recommendations...")
 
-    # Import portfolio management (keeping existing portfolio state functionality)
-    from quant.portfolio.state import PortfolioTracker
-
-    # Load current portfolio state
-    portfolio_tracker = PortfolioTracker(config['data']['cache_dir'] + "/portfolio")
+    # Use provided portfolio tracker or create new one
+    if portfolio_tracker is None:
+        from quant.portfolio.state import PortfolioTracker
+        portfolio_tracker = PortfolioTracker(config['data']['cache_dir'] + "/portfolio")
 
     # Handle empty recommendations
     if recommendations.empty or 'ticker' not in recommendations.columns or 'close' not in recommendations.columns:
@@ -549,22 +560,26 @@ def main():
     data = fetch_current_data(config)
 
     # Execute adaptive modular pipeline
-    results = execute_adaptive_modular_pipeline(pipeline, data, engine)
+    results, portfolio_tracker = execute_adaptive_modular_pipeline(pipeline, data, engine, config)
 
     # Create adaptive trading recommendations
     recommendations = create_adaptive_recommendations(results, data, engine)
 
-    # Execute portfolio management
-    executed_trades = run_portfolio_management(recommendations, config)
+    # Execute portfolio management (using the same portfolio tracker to avoid duplicate buying)
+    executed_trades = run_portfolio_management(recommendations, config, portfolio_tracker)
 
     # Save adaptive logs
     save_adaptive_logs(recommendations, executed_trades, config['data']['cache_dir'], engine)
 
-    # Generate daily report
+    # Generate daily report with portfolio performance
     print("\n📊 Generating adaptive daily report...")
     report_dir = config.get('run', {}).get('outdir', 'reports')
-    save_daily_markdown(recommendations, report_dir, {}, engine, data.get('macro_data', {}))
-    print("✅ Adaptive daily report saved")
+
+    # Get current portfolio summary for the report
+    portfolio_summary = portfolio_tracker.get_portfolio_summary() if portfolio_tracker else {}
+
+    save_daily_markdown(recommendations, report_dir, portfolio_summary, engine, data.get('macro_data', {}))
+    print("✅ Adaptive daily report saved with portfolio performance")
 
     # Show summary
     buy_count = len(recommendations[recommendations['decision'] == 'Buy'])

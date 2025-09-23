@@ -324,19 +324,26 @@ class PortfolioTracker:
             'date': self.current_state.date,
             'total_value': self.current_state.total_value,
             'cash': self.current_state.cash,
-            'invested': self.current_state.total_invested,
+            'total_invested': self.current_state.total_invested,  # Match daily report field name
+            'invested': self.current_state.total_invested,        # Backward compatibility
             'positions': len(self.current_state.holdings),
-            'unrealized_pnl': self.current_state.total_unrealized_pnl,
+            'total_unrealized_pnl': self.current_state.total_unrealized_pnl,  # Match daily report field name
+            'unrealized_pnl': self.current_state.total_unrealized_pnl,        # Backward compatibility
             'portfolio_return': self.current_state.portfolio_return,
             'largest_position': max((h.weight for h in self.current_state.holdings), default=0),
             'holdings': [
                 {
                     'ticker': h.ticker,
                     'shares': h.shares,
+                    'avg_cost': h.avg_cost,                       # Add field needed by daily report
+                    'current_price': h.current_price,            # Add field needed by daily report
+                    'market_value': h.market_value,              # Add field needed by daily report
                     'weight': h.weight,
-                    'value': h.market_value,
-                    'pnl': h.unrealized_pnl,
-                    'return': h.unrealized_pnl / h.cost_basis if h.cost_basis > 0 else 0
+                    'value': h.market_value,                     # Backward compatibility
+                    'unrealized_pnl': h.unrealized_pnl,         # Add field needed by daily report
+                    'pnl': h.unrealized_pnl,                    # Backward compatibility
+                    'return': h.unrealized_pnl / h.cost_basis if h.cost_basis > 0 else 0,
+                    'date_acquired': h.date_acquired             # Add field needed by daily report
                 }
                 for h in self.current_state.holdings
             ]

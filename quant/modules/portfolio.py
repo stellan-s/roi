@@ -331,8 +331,11 @@ class PortfolioManagementModule(BaseModule):
             if row.get('decision', 'Hold') not in ['Buy', 'Sell']:
                 continue
 
-            # Skip positions with very low confidence
-            if row.get('confidence', 0) < 0.3:
+            # Adaptive confidence threshold (much more aggressive!)
+            adaptive_config = self.config.get('adaptive_thresholds', {})
+            min_confidence = 0.15 if adaptive_config.get('enabled', True) else 0.3  # Sänkt till 15%!
+
+            if row.get('confidence', 0) < min_confidence:
                 continue
 
             # Get current weight if exists
@@ -351,6 +354,76 @@ class PortfolioManagementModule(BaseModule):
 
             positions.append(position)
 
+        print(f"✅ Built {len(positions)} portfolio positions after adaptive filtering")
+        return positions
+
+    def _calculate_adaptive_thresholds(self, candidates_df: pd.DataFrame) -> tuple[float, float]:
+        """Calculate adaptive thresholds based on current market volatility."""
+        adaptive_config = self.config.get('adaptive_thresholds', {})
+        vol_config = adaptive_config.get('volatility_adjustments', {})
+
+        base_return = adaptive_config.get('base_min_return', 0.001)
+        base_confidence = adaptive_config.get('base_min_confidence', 0.15)
+
+        # Estimate current market volatility from candidate risk scores
+        if not candidates_df.empty and 'risk_score' in candidates_df.columns:
+            avg_risk = candidates_df['risk_score'].mean()
+            market_volatility = avg_risk * 0.3  # Rough approximation
+        else:
+            market_volatility = 0.15  # Default assumption
+
+        low_vol_threshold = vol_config.get('low_vol_threshold', 0.12)
+        high_vol_threshold = vol_config.get('high_vol_threshold', 0.25)
+
+        if market_volatility < low_vol_threshold:
+            # Low volatility - be more aggressive
+            return_multiplier = vol_config.get('low_vol_return_multiplier', 0.5)
+            confidence_multiplier = vol_config.get('low_vol_confidence_multiplier', 0.8)
+            vol_regime = "low_vol"
+        elif market_volatility > high_vol_threshold:
+            # High volatility - be more selective
+            return_multiplier = vol_config.get('high_vol_return_multiplier', 1.5)
+            confidence_multiplier = vol_config.get('high_vol_confidence_multiplier', 1.2)
+            vol_regime = "high_vol"
+        else:
+            # Normal volatility
+            return_multiplier = 1.0
+            confidence_multiplier = 1.0
+            vol_regime = "normal_vol"
+
+        adjusted_return_threshold = base_return * return_multiplier
+        adjusted_confidence_threshold = base_confidence * confidence_multiplier
+
+        print(f"📊 Market volatility: {market_volatility:.1%} ({vol_regime}) -> thresholds adjusted by {return_multiplier:.1f}x, {confidence_multiplier:.1f}x")
+
+        return adjusted_return_threshold, adjusted_confidence_threshold
+
+    def _apply_position_scaling(self, positions: List[PortfolioPosition], scaling_config: Dict) -> List[PortfolioPosition]:
+        """Apply position scaling strategy - start small, scale up winners."""
+        initial_size = scaling_config.get('initial_position_size', 0.02)  # 2% start
+        max_size = scaling_config.get('max_scale_size', 0.06)  # 6% max
+
+        print(f"📊 Applying position scaling: {initial_size:.1%} initial → {max_size:.1%} max")
+
+        for pos in positions:
+            if pos.current_weight == 0:
+                # New position - start small
+                pos.target_weight = initial_size
+                print(f"  🌱 New position {pos.ticker}: {initial_size:.1%}")
+            else:
+                # Existing position - consider scaling up
+                current_weight = pos.current_weight
+                if current_weight < max_size and pos.expected_return > 0.02:  # 2% return threshold for scaling
+                    # Scale up gradually
+                    scale_increment = scaling_config.get('scaling_increment', 0.01)
+                    new_weight = min(current_weight + scale_increment, max_size)
+                    pos.target_weight = new_weight
+                    print(f"  📈 Scaling {pos.ticker}: {current_weight:.1%} → {new_weight:.1%}")
+                else:
+                    # Keep current weight
+                    pos.target_weight = current_weight
+                    print(f"  ➡️ Maintaining {pos.ticker}: {current_weight:.1%}")
+
         return positions
 
     def _optimize_portfolio(self, positions: List[PortfolioPosition],
@@ -365,6 +438,11 @@ class PortfolioManagementModule(BaseModule):
             for pos in positions:
                 pos.target_weight = 0.0
             return positions
+
+        # Apply position scaling logic - start smaller, scale up
+        scaling_config = self.config.get('position_scaling', {})
+        if scaling_config.get('enabled', True):
+            buy_positions = self._apply_position_scaling(buy_positions, scaling_config)
 
         # Calculate risk-adjusted scores for each position
         risk_adjusted_scores = []

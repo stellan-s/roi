@@ -10,6 +10,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
 import yaml
+import argparse
 
 from quant.adaptive_main import load_configuration, prepare_historical_data, calibrate_adaptive_engine
 from quant.bayesian.integration import BayesianPolicyEngine
@@ -272,16 +273,43 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
 
 def main():
     """Run comprehensive backtesting analysis."""
+    parser = argparse.ArgumentParser(description='ROI Backtesting Framework')
+    parser.add_argument('--days', type=int, default=None,
+                       help='Number of days to backtest (default: from config, usually 180 = 6 months)')
+    parser.add_argument('--start-date', type=str,
+                       help='Start date for backtest (YYYY-MM-DD format)')
+    parser.add_argument('--end-date', type=str,
+                       help='End date for backtest (YYYY-MM-DD format)')
+    parser.add_argument('--comparison', action='store_true',
+                       help='Run comparison between adaptive and static engines')
+
+    args = parser.parse_args()
+
     print("=== ROI Adaptive Trading System - Backtesting ===")
 
     # Load configuration
     config = load_configuration()
     print(f"Loaded configuration for {len(config['universe']['tickers'])} tickers")
 
-    # Define backtest period (last 6 months for quick test)
+    # Define backtest period
     today = datetime.now().date()
-    end_date = (today - timedelta(days=1)).isoformat()  # Yesterday to avoid incomplete data
-    start_date = (today - timedelta(days=180)).isoformat()  # 6 months back
+
+    if args.start_date and args.end_date:
+        # Use specified date range
+        start_date = args.start_date
+        end_date = args.end_date
+        print(f"Using specified period: {start_date} to {end_date}")
+    elif args.start_date:
+        # Start date specified, use today as end
+        start_date = args.start_date
+        end_date = (today - timedelta(days=1)).isoformat()
+        print(f"Using specified start date: {start_date} to {end_date}")
+    else:
+        # Use days parameter or config default to go back from today
+        days = args.days if args.days is not None else config.get('backtesting', {}).get('default_period_days', 180)
+        end_date = (today - timedelta(days=1)).isoformat()  # Yesterday to avoid incomplete data
+        start_date = (today - timedelta(days=days)).isoformat()
+        print(f"Using {days} day period: {start_date} to {end_date}")
 
     print(f"Backtesting period: {start_date} to {end_date}")
 

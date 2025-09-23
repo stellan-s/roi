@@ -361,11 +361,15 @@ def main():
     # Save logs
     save_recommendations_log(recommendations, executed_trades, config['data']['cache_dir'])
 
-    # Generate daily report
+    # Generate daily report with portfolio performance
     print("\n📊 Generating daily report...")
     report_dir = "reports"
-    save_daily_markdown(recommendations, report_dir)
-    print("✅ Daily report saved")
+
+    # Get current portfolio summary for the report
+    portfolio_summary = portfolio_tracker.get_portfolio_summary() if portfolio_tracker else {}
+
+    save_daily_markdown(recommendations, report_dir, portfolio_summary)
+    print("✅ Daily report saved with portfolio performance")
 
     # Show summary
     buy_count = len(recommendations[recommendations['decision'] == 'Buy'])

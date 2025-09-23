@@ -1,0 +1,35 @@
+{
+  "backtest_date": "20250919_212445",
+  "period": {
+    "start": "2025-03-23",
+    "end": "2025-09-18"
+  },
+  "adaptive_results": {
+    "total_return": 0.2221303566426367,
+    "annualized_return": 0.4797320663465472,
+    "sharpe_ratio": 0.33693480958686495,
+    "max_drawdown": -0.04481041615783339,
+    "win_rate": 0.978494623655914,
+    "total_trades": "3"
+  },
+  "static_results": {
+    "total_return": 0.0,
+    "annualized_return": 0.0,
+    "sharpe_ratio": -2.0,
+    "max_drawdown": 0.0,
+    "win_rate": 0,
+    "total_trades": "0"
+  },
+  "improvements": {
+    "return_improvement": 0.2221303566426367,
+    "sharpe_improvement": 2.336934809586865,
+    "drawdown_improvement": 0.04481041615783339
+  },
+  "trading_analysis": {
+    "adaptive_trades": "3",
+    "static_trades": "0",
+    "trade_frequency_difference": "3",
+    "adaptive_return_per_trade": 0.07404345221421223,
+    "static_return_per_trade": 0
+  }
+}
