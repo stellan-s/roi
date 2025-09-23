@@ -19,6 +19,7 @@ from quant.modules import ModuleRegistry
 from quant.modules.technical import TechnicalIndicatorsModule
 from quant.modules.sentiment import SentimentAnalysisModule
 from quant.modules.regime import RegimeDetectionModule
+from quant.modules.fundamentals import FundamentalsModule
 from quant.modules.risk import RiskManagementModule
 from quant.modules.portfolio import PortfolioManagementModule
 from quant.config.modules import modules as module_config
@@ -103,6 +104,7 @@ def create_adaptive_modular_pipeline():
     registry.register_module(TechnicalIndicatorsModule)
     registry.register_module(SentimentAnalysisModule)
     registry.register_module(RegimeDetectionModule)
+    registry.register_module(FundamentalsModule)
     registry.register_module(RiskManagementModule)
     registry.register_module(PortfolioManagementModule)
 
@@ -186,12 +188,21 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
     })
     results['regime_detection'] = regime_result
 
-    # Step 4: Adaptive Bayesian Integration
+    # Step 4: Fundamentals Analysis
+    print("   📊 Running fundamentals analysis...")
+    fundamentals_module = FundamentalsModule(module_config.get('fundamentals', {}))
+    fundamentals_result = fundamentals_module.execute({
+        'tickers': data['tickers']
+    })
+    results['fundamentals'] = fundamentals_result
+
+    # Step 5: Adaptive Bayesian Integration
     print("   🧠 Running adaptive Bayesian integration...")
 
     # Transform modular data to legacy format expected by bayesian_score
     tech_signals_df = tech_result.data.get('technical_features', pd.DataFrame())
     sentiment_signals_df = sentiment_result.data.get('sentiment_features', pd.DataFrame())
+    fundamentals_data = fundamentals_result.data.get('fundamentals', {})
 
     # Create combined dataframe with expected column names
     combined_data = []
@@ -208,6 +219,9 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
 
         latest_price = ticker_prices.iloc[-1]
 
+        # Get fundamentals data
+        ticker_fundamentals = fundamentals_data.get(ticker, {})
+
         # Create row with expected column names
         row = {
             'ticker': ticker,
@@ -217,7 +231,9 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
             'above_sma': tech_data.iloc[0].get('sma_signal', 0) if not tech_data.empty else 0,
             'mom_rank': tech_data.iloc[0].get('momentum', 0) if not tech_data.empty else 0,
             # Sentiment (convert from modular format)
-            'sent_score': senti_data.iloc[0].get('sentiment_score', 0) if not senti_data.empty else 0
+            'sent_score': senti_data.iloc[0].get('sentiment_score', 0) if not senti_data.empty else 0,
+            # Fundamentals (from modular format)
+            'fundamental_score': ticker_fundamentals.get('fundamental_score', 0.5)
         }
         combined_data.append(row)
 
@@ -240,6 +256,20 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
         tech_df['date'] = pd.to_datetime(tech_df['date'])
         senti_df['date'] = pd.to_datetime(senti_df['date'])
 
+        # Create fundamentals DataFrame if data available
+        fundamentals_df = None
+        if fundamentals_data:
+            fund_rows = []
+            for ticker, features in fundamentals_data.items():
+                if features:  # Only include tickers with actual data
+                    fund_rows.append({
+                        'ticker': ticker,
+                        'fundamental_score': features.get('fundamental_score', 0.5)
+                    })
+            if fund_rows:
+                fundamentals_df = pd.DataFrame(fund_rows)
+                fundamentals_df['ticker'] = fundamentals_df['ticker'].astype(str)
+
         # Ensure string columns are string type (to avoid object issues)
         tech_df['ticker'] = tech_df['ticker'].astype(str)
         senti_df['ticker'] = senti_df['ticker'].astype(str)
@@ -248,6 +278,7 @@ def execute_adaptive_modular_pipeline(pipeline, data: Dict, adaptive_engine: Ada
         adaptive_recommendations = adaptive_engine.bayesian_score_adaptive(
             tech=tech_df,
             senti=senti_df,
+            fundamentals=fundamentals_df,
             prices=data['prices'],
             vix_data=data.get('vix_data')
         )
@@ -415,6 +446,7 @@ def create_adaptive_recommendations(results: Dict, data: Dict, adaptive_engine: 
             'trend_weight': row.get('trend_weight', 0),
             'momentum_weight': row.get('momentum_weight', 0),
             'sentiment_weight': row.get('sentiment_weight', 0),
+            'fundamentals_weight': row.get('fundamentals_weight', 0),
             'regime': current_regime,
             'regime_confidence': regime_confidence,
             'tail_risk': tail_risk,

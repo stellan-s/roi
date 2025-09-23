@@ -8,6 +8,7 @@ and pipeline execution instead of legacy imports.
 import pandas as pd
 from datetime import datetime
 from typing import Dict, List
+from pathlib import Path
 
 from quant.data_layer.prices import fetch_prices
 from quant.data_layer.news import fetch_news
@@ -16,6 +17,7 @@ from quant.modules import ModuleRegistry
 from quant.modules.technical import TechnicalIndicatorsModule
 from quant.modules.sentiment import SentimentAnalysisModule
 from quant.modules.regime import RegimeDetectionModule
+from quant.modules.fundamentals import FundamentalsModule
 from quant.modules.risk import RiskManagementModule
 from quant.modules.portfolio import PortfolioManagementModule
 from quant.config.modules import modules as module_config
@@ -32,6 +34,7 @@ def create_modular_pipeline():
     registry.register_module(TechnicalIndicatorsModule)
     registry.register_module(SentimentAnalysisModule)
     registry.register_module(RegimeDetectionModule)
+    registry.register_module(FundamentalsModule)
     registry.register_module(RiskManagementModule)
     registry.register_module(PortfolioManagementModule)
 
@@ -105,21 +108,32 @@ def execute_modular_pipeline(pipeline, data: Dict) -> Dict:
     })
     results['regime_detection'] = regime_result
 
-    # Step 4: Risk Management
+    # Step 4: Fundamentals Analysis
+    print("   📊 Running fundamentals analysis...")
+    fundamentals_module = FundamentalsModule(module_config.get('fundamentals', {}))
+    fundamentals_result = fundamentals_module.execute({
+        'tickers': data['tickers']
+    })
+    results['fundamentals'] = fundamentals_result
+
+    # Step 5: Risk Management
     print("   ⚠️ Running risk management...")
     risk_module = RiskManagementModule(module_config['risk_management'])
 
-    # Create expected returns from technical and sentiment signals
+    # Create expected returns from technical, sentiment, and fundamental signals
     expected_returns = {}
     for ticker in data['tickers']:
         tech_signals = tech_result.data.get('signals', {}).get(ticker, {})
         sentiment_signals = sentiment_result.data.get('sentiment_signals', {})
+        fundamental_signals = fundamentals_result.data.get('fundamentals', {}).get(ticker, {})
 
         sma_signal = tech_signals.get('sma_signal', 0)
         momentum = tech_signals.get('momentum', 0)
         sentiment_signal = sentiment_signals.get(ticker, 0)
+        fundamental_signal = (fundamental_signals.get('fundamental_score', 0.5) - 0.5) * 2.0
 
-        expected_return = (sma_signal * 0.4 + momentum * 0.4 + sentiment_signal * 0.2)
+        # Include fundamentals in the expected return calculation
+        expected_return = (sma_signal * 0.3 + momentum * 0.3 + sentiment_signal * 0.2 + fundamental_signal * 0.2)
         expected_returns[ticker] = expected_return
 
     risk_result = risk_module.process({
@@ -297,7 +311,7 @@ def execute_portfolio_management(recommendations: pd.DataFrame, config: Dict) ->
             cash_per_position=10000.0
         )
 
-    return executed_trades
+    return executed_trades, portfolio_tracker
 
 
 def save_recommendations_log(recommendations: pd.DataFrame, executed_trades: List[Dict], cache_dir: str):
@@ -356,7 +370,7 @@ def main():
     recommendations = create_trading_recommendations(results, data)
 
     # Execute portfolio management
-    executed_trades = execute_portfolio_management(recommendations, config)
+    executed_trades, portfolio_tracker = execute_portfolio_management(recommendations, config)
 
     # Save logs
     save_recommendations_log(recommendations, executed_trades, config['data']['cache_dir'])

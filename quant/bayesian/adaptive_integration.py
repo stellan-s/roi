@@ -111,6 +111,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
     def bayesian_score_adaptive(self,
                                tech: pd.DataFrame,
                                senti: pd.DataFrame,
+                               fundamentals: Optional[pd.DataFrame] = None,
                                prices: Optional[pd.DataFrame] = None,
                                vix_data: Optional[pd.DataFrame] = None,
                                metals_data: Optional[pd.DataFrame] = None,
@@ -432,10 +433,14 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         sentiment_scale = self.estimated_params.sentiment_scale_factor.value
         sentiment_signal = np.clip(row['sent_score'] * sentiment_scale, -1.0, 1.0)
 
+        # Fundamentals signal: fundamental_score (0-1) -> (-1, +1)
+        fundamentals_signal = (row.get('fundamental_score', 0.5) - 0.5) * 2.0
+
         return {
             SignalType.TREND: trend_signal,
             SignalType.MOMENTUM: momentum_signal,
-            SignalType.SENTIMENT: sentiment_signal
+            SignalType.SENTIMENT: sentiment_signal,
+            SignalType.FUNDAMENTALS: fundamentals_signal
         }
 
     def _get_adaptive_regime_adjustments(self, regime: MarketRegime) -> Dict[str, float]:
@@ -486,6 +491,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
     def bayesian_score_adaptive(self,
                                tech: pd.DataFrame,
                                senti: pd.DataFrame,
+                               fundamentals: Optional[pd.DataFrame] = None,
                                prices: Optional[pd.DataFrame] = None,
                                vix_data: Optional[pd.DataFrame] = None,
                                metals_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
@@ -494,7 +500,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         """
         if not self.is_calibrated:
             print("Warning: Engine not calibrated. Using default parameters.")
-            return self.bayesian_score(tech, senti, prices, vix_data)
+            return self.bayesian_score(tech, senti, prices, vix_data, metals_data)
 
         # Regime detection with VIX data
         regime_adjustment = 1.0
@@ -528,6 +534,11 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
         merged = pd.merge(tech, senti, on='ticker', how='left')
         merged["sent_score"] = merged["sent_score"].fillna(0).infer_objects()
 
+        # Add fundamentals data if available
+        if fundamentals is not None and not fundamentals.empty:
+            merged = pd.merge(merged, fundamentals, on='ticker', how='left')
+            merged["fundamental_score"] = merged["fundamental_score"].fillna(0.5).infer_objects()
+
         # Add current prices if available (tech already has close prices, but might be outdated)
         if prices is not None:
             current_prices = prices.groupby('ticker')['close'].last().reset_index()
@@ -545,7 +556,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
             signals = self._normalize_signals_adaptive(row)
 
             # Apply regime adjustments
-            for signal_name in ["momentum", "trend", "sentiment"]:
+            for signal_name in ["momentum", "trend", "sentiment", "fundamentals"]:
                 signal_type = getattr(SignalType, signal_name.upper())
                 if signal_type in signals:
                     multiplier = regime_adjustments.get(signal_name, 1.0)
@@ -599,6 +610,7 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
                 'trend_weight': output.signal_weights.get(SignalType.TREND, 0),
                 'momentum_weight': output.signal_weights.get(SignalType.MOMENTUM, 0),
                 'sentiment_weight': output.signal_weights.get(SignalType.SENTIMENT, 0),
+                'fundamentals_weight': output.signal_weights.get(SignalType.FUNDAMENTALS, 0),
                 'regime': self.current_regime.value if self.current_regime else 'unknown',
                 'regime_confidence': self.regime_probabilities[self.current_regime] if self.current_regime and self.regime_probabilities else 0.33,
                 **self._get_tail_risk_metrics(row['ticker'], signals),

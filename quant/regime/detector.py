@@ -157,7 +157,23 @@ class RegimeDetector:
 
         # Assume prices has columns: date, ticker, close
         # Focus on index-like behaviour by averaging across tickers
-        market_data = prices.groupby('date')['close'].mean().sort_index()
+
+        # Debug: check what columns are actually present
+        if 'close' not in prices.columns:
+            print(f"⚠️ Debug: prices columns are {list(prices.columns)}")
+            # Try to find a close price column with different casing
+            close_col = None
+            for col in prices.columns:
+                if col.lower() in ['close', 'close_price', 'price']:
+                    close_col = col
+                    break
+            if close_col is None:
+                raise ValueError(f"No close price column found in prices. Available columns: {list(prices.columns)}")
+            print(f"✅ Using column '{close_col}' as close price")
+        else:
+            close_col = 'close'
+
+        market_data = prices.groupby('date')[close_col].mean().sort_index()
 
         features = pd.DataFrame(index=market_data.index)
         features['price'] = market_data

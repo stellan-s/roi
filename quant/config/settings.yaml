@@ -11,6 +11,25 @@ data:
   cache_dir: "data"
   lookback_days: 1250
 
+  # Fundamentals API configuration
+  fundamentals_api:
+    enabled: true  # Enable when API securities are linked to companies
+    base_url: "http://localhost:8000"
+    api_key: "test-api-key-12345"
+    cache_hours: 24
+    default_metrics:
+      - "revenue"
+      - "ebit"
+      - "netIncome"
+      - "eps"
+      - "equity"
+      - "assets"
+      - "operatingCF"
+      - "capex"
+      - "shares"
+      - "netDebt"
+    default_years: 5
+
 # Backtesting settings
 backtesting:
   default_period_days: 180

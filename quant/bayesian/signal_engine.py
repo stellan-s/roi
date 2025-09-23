@@ -8,6 +8,7 @@ class SignalType(Enum):
     TREND = "trend"
     MOMENTUM = "momentum"
     SENTIMENT = "sentiment"
+    FUNDAMENTALS = "fundamentals"
 
 @dataclass
 class SignalPrior:
@@ -48,11 +49,13 @@ class BayesianSignalEngine:
             trend_eff = prior_config.get('trend_effectiveness', 0.55)
             momentum_eff = prior_config.get('momentum_effectiveness', 0.58)
             sentiment_eff = prior_config.get('sentiment_effectiveness', 0.52)
+            fundamentals_eff = prior_config.get('fundamentals_effectiveness', 0.60)
         else:
             # Default values
             trend_eff = 0.55
             momentum_eff = 0.58
             sentiment_eff = 0.52
+            fundamentals_eff = 0.60
 
         # Informative priors based on financial theory and configuration
         self.priors = {
@@ -70,6 +73,11 @@ class BayesianSignalEngine:
                 mean_effectiveness=sentiment_eff, # Configurable
                 confidence=5.0,                   # Lower confidence
                 predictive_power=0.3              # Weaker predictive power
+            ),
+            SignalType.FUNDAMENTALS: SignalPrior(
+                mean_effectiveness=fundamentals_eff, # Configurable
+                confidence=12.0,                     # Higher confidence - fundamentals are well-established
+                predictive_power=0.5                 # Strong predictive power for long-term returns
             )
         }
 

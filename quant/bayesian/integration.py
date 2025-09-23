@@ -122,6 +122,7 @@ class BayesianPolicyEngine:
                 'trend_weight': output.signal_weights.get(SignalType.TREND, 0),
                 'momentum_weight': output.signal_weights.get(SignalType.MOMENTUM, 0),
                 'sentiment_weight': output.signal_weights.get(SignalType.SENTIMENT, 0),
+                'fundamentals_weight': output.signal_weights.get(SignalType.FUNDAMENTALS, 0),
                 'decision': decision,
                 'decision_confidence': self._decision_confidence(output),
                 # Per-stock regime information
@@ -147,10 +148,14 @@ class BayesianPolicyEngine:
         # Sentiment signal: sent_score (typically -2 to +2) -> (-1, +1)
         sentiment_signal = np.clip(row['sent_score'] / 2.0, -1.0, 1.0)
 
+        # Fundamentals signal: fundamental_score (0-1) -> (-1, +1)
+        fundamentals_signal = (row.get('fundamental_score', 0.5) - 0.5) * 2.0
+
         return {
             SignalType.TREND: trend_signal,
             SignalType.MOMENTUM: momentum_signal,
-            SignalType.SENTIMENT: sentiment_signal
+            SignalType.SENTIMENT: sentiment_signal,
+            SignalType.FUNDAMENTALS: fundamentals_signal
         }
 
     def _output_to_decision(self, output: SignalOutput) -> str:
