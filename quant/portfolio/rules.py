@@ -9,6 +9,7 @@ from ..risk.analytics import RiskAnalytics, PortfolioRiskProfile
 class PortfolioConstraints:
     """Portfolio-level constraints and rules."""
     max_weight_per_stock: float = 0.10          # Max 10% per stock
+    max_top3_exposure: float = 0.30             # Max absolute combined top-3 exposure
     max_single_regime_exposure: float = 0.85    # Max 85% in the same regime
     min_regime_diversification: bool = True     # Require at least 2 regimes
     pre_earnings_freeze_days: int = 5           # No trading ahead of earnings
@@ -16,6 +17,7 @@ class PortfolioConstraints:
     min_portfolio_positions: int = 3            # At least 3 active positions
     bear_market_allocation: float = 0.60        # Max allocation in bear markets
     target_total_allocation: float = 0.85       # Target total deployed capital
+    min_history_days: int = 60                  # Minimum history for liquidity/stability checks
 
 @dataclass
 class PortfolioPosition:
@@ -56,20 +58,26 @@ class PortfolioManager:
         # Load constraints from config
         if config and 'policy' in config:
             policy = config['policy']
+            risk_controls = config.get('risk_controls', {})
             self.constraints = PortfolioConstraints(
                 max_weight_per_stock=policy.get('max_weight', 0.10),
+                max_top3_exposure=risk_controls.get(
+                    'max_top3_exposure',
+                    min(3 * policy.get('max_weight', 0.10), 0.30),
+                ),
                 max_single_regime_exposure=policy.get('max_single_regime_exposure', 0.85),
                 min_regime_diversification=policy.get('regime_diversification', True),
                 pre_earnings_freeze_days=policy.get('pre_earnings_freeze_days', 5),
                 trade_cost_bps=policy.get('trade_cost_bps', 3),  # Use lower default from config
                 min_portfolio_positions=policy.get('min_portfolio_positions', 3),
                 bear_market_allocation=policy.get('bear_market_allocation', 0.85),
-                target_total_allocation=policy.get('target_total_allocation', 0.85)
+                target_total_allocation=policy.get('target_total_allocation', 0.85),
+                min_history_days=risk_controls.get('min_history_days', 60),
             )
         else:
             self.constraints = PortfolioConstraints()
 
-    def apply_portfolio_rules(self, decisions: pd.DataFrame) -> pd.DataFrame:
+    def apply_portfolio_rules(self, decisions: pd.DataFrame, price_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Apply portfolio-level rules on Bayesian decisions.
 
@@ -143,7 +151,9 @@ class PortfolioManager:
         # Apply portfolio rules
         adjusted_positions = self._apply_regime_diversification(positions)
         adjusted_positions = self._apply_position_sizing(adjusted_positions)
+        adjusted_positions = self._apply_liquidity_guardrails(adjusted_positions, price_data)
         adjusted_positions = self._apply_transaction_cost_filter(adjusted_positions)
+        adjusted_positions = self._apply_concentration_guardrails(adjusted_positions)
 
         # Convert back to a DataFrame
         adjusted_df = self._positions_to_dataframe(adjusted_positions, latest_decisions)
@@ -288,31 +298,22 @@ class PortfolioManager:
             if pos.weight < min_position_size:
                 pos.weight = 0.0
 
-        # Normalise if the total weight exceeds the budget
+        # Only scale DOWN when total allocation exceeds the budget.
+        # Never scale up sparse books (that can override per-position caps).
         total_weight = sum(pos.weight for pos in active_buys if pos.weight > 0)
         if total_weight > 0:
             desired = min(self.constraints.target_total_allocation, total_weight_budget)
-            scale_factor = desired / total_weight if desired > 0 else 1.0
+            scale_factor = desired / total_weight if desired > 0 and total_weight > desired else 1.0
 
-            if scale_factor != 1.0:
+            if scale_factor < 1.0:
                 for pos in active_buys:
                     if pos.weight > 0:
                         pos.weight *= scale_factor
 
-            # Enforce position cap after scaling
-            capped = False
+            # Enforce position cap after scaling (hard cap).
             for pos in active_buys:
                 if pos.weight > self.constraints.max_weight_per_stock:
                     pos.weight = self.constraints.max_weight_per_stock
-                    capped = True
-
-            if capped:
-                capped_total = sum(pos.weight for pos in active_buys if pos.weight > 0)
-                if capped_total > 0 and desired > 0:
-                    rescale = desired / capped_total
-                    for pos in active_buys:
-                        if pos.weight > 0:
-                            pos.weight *= rescale
 
         print(f"📊 Portfolio allocation: {sum(pos.weight for pos in active_buys if pos.weight > 0):.1%} across {len([p for p in active_buys if p.weight > 0])} positions")
 
@@ -330,6 +331,75 @@ class PortfolioManager:
                     print(f"⚠️ {pos.ticker}: Expected return {pos.expected_return*100:.3f}% < transaction costs {cost_threshold*2*100:.3f}%")
                     pos.decision = 'Hold'
                     pos.weight = 0.0
+
+        return positions
+
+    def _apply_liquidity_guardrails(
+        self,
+        positions: List[PortfolioPosition],
+        price_data: Optional[pd.DataFrame],
+    ) -> List[PortfolioPosition]:
+        """
+        Pre-trade liquidity/stability guardrail.
+        Requires minimum history per ticker before allowing new risk.
+        """
+        if price_data is None or price_data.empty:
+            return positions
+
+        min_history_days = max(int(self.constraints.min_history_days), 1)
+
+        # Support long format (date/ticker/close) and pivot format (index=date, columns=ticker).
+        history_counts: Dict[str, int] = {}
+        if {'date', 'ticker', 'close'}.issubset(price_data.columns):
+            counts = price_data.groupby('ticker')['close'].count()
+            history_counts = {str(k): int(v) for k, v in counts.items()}
+        else:
+            counts = price_data.notna().sum()
+            history_counts = {str(k): int(v) for k, v in counts.to_dict().items()}
+
+        for pos in positions:
+            if pos.decision != 'Buy' or pos.weight <= 0:
+                continue
+            history_len = history_counts.get(pos.ticker, 0)
+            if history_len < min_history_days:
+                print(
+                    f"⚠️ {pos.ticker}: insufficient history ({history_len} < {min_history_days}) - "
+                    "downgrading to Hold"
+                )
+                pos.decision = 'Hold'
+                pos.weight = 0.0
+
+        return positions
+
+    def _apply_concentration_guardrails(self, positions: List[PortfolioPosition]) -> List[PortfolioPosition]:
+        """Post-trade guardrails for single-name and top-3 concentration."""
+        buys = [p for p in positions if p.decision == 'Buy' and p.weight > 0]
+        if not buys:
+            return positions
+
+        # Hard per-name cap.
+        for pos in buys:
+            if pos.weight > self.constraints.max_weight_per_stock:
+                pos.weight = self.constraints.max_weight_per_stock
+
+        # Top-3 absolute exposure cap.
+        top3 = sorted((p.weight for p in buys), reverse=True)[:3]
+        top3_exposure = sum(top3)
+        if top3_exposure > self.constraints.max_top3_exposure and top3_exposure > 0:
+            scale = self.constraints.max_top3_exposure / top3_exposure
+            for pos in buys:
+                pos.weight *= scale
+            print(
+                f"⚠️ Top-3 exposure capped: {top3_exposure:.1%} -> "
+                f"{self.constraints.max_top3_exposure:.1%}"
+            )
+
+        # Portfolio total cap.
+        total_alloc = sum(p.weight for p in buys)
+        if total_alloc > self.constraints.target_total_allocation and total_alloc > 0:
+            scale = self.constraints.target_total_allocation / total_alloc
+            for pos in buys:
+                pos.weight *= scale
 
         return positions
 

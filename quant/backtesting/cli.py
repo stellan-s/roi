@@ -4,12 +4,14 @@ import argparse
 from pathlib import Path
 
 from quant.adaptive_main import load_configuration, prepare_historical_data
+from quant.bayesian.adaptive_integration import AdaptiveBayesianEngine
+from quant.bayesian.integration import BayesianPolicyEngine
 from quant.backtest_runner import (
     create_adaptive_engine,
     create_static_engine,
     run_backtest_period,
 )
-from quant.backtesting.framework import ComparisonResults, BacktestResults
+from quant.backtesting.framework import BacktestEngine, ComparisonResults, BacktestResults
 
 
 def _print_single_run(results):

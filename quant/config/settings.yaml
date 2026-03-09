@@ -33,6 +33,16 @@ data:
 # Backtesting settings
 backtesting:
   default_period_days: 180
+  execution:
+    slippage_bps: 3.0
+    fee_bps: 3.0
+
+# Runtime risk guardrails
+risk_controls:
+  max_drawdown: 0.20
+  max_daily_loss: 0.05
+  max_top3_exposure: 0.18
+  min_history_days: 60
 
 # Basic signal settings (används i technical.py)
 signals:
@@ -137,9 +147,10 @@ stock_factor_profiles:
 
   # Dynamic filtering for investable universe
   dynamic_filtering:
-    cost_threshold: 0.002        # 20bp min expected return (High selectivity)
-    conviction_threshold: 0.55   # 55% min decision confidence (Above average)
-    max_positions: 5             # Focus portfolio on ONLY the best opportunities
+    cost_threshold: 0.0008       # 8bp min expected return (Balanced selectivity)
+    conviction_threshold: 0.48   # 48% min decision confidence (Balanced)
+    min_positions: 6             # Target floor for balanced output breadth
+    max_positions: 8             # Target ceiling for balanced output breadth
     min_liquidity_mcap: 1000     # Minimum market cap (MSEK) for liquidity
     # Alpha-focused filtering
     alpha_requirements:

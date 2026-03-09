@@ -56,12 +56,25 @@ class BayesianPolicyEngine:
         self.vix_data = vix_data
         self.metals_data = metals_data
 
-        # Merge data sources
+        # Merge data sources with defensive key normalization so callers cannot
+        # accidentally break joins with mixed datetime/object dtypes.
         t = tech.copy()
-        t["date"] = pd.to_datetime(t["date"]).dt.date
-        s = senti.rename(columns={"date": "date"})
-        df = t.merge(s, on=["date", "ticker"], how="left")
-        df["sent_score"] = df["sent_score"].fillna(0).infer_objects()
+        t["date"] = pd.to_datetime(t["date"], errors="coerce").dt.normalize().dt.date
+        t["ticker"] = t["ticker"].astype(str)
+
+        s = senti.copy()
+        if "date" not in s.columns:
+            s["date"] = pd.NaT
+        s["date"] = pd.to_datetime(s["date"], errors="coerce").dt.normalize().dt.date
+        if "ticker" in s.columns:
+            s["ticker"] = s["ticker"].astype(str)
+        else:
+            s["ticker"] = ""
+        if "sent_score" not in s.columns:
+            s["sent_score"] = 0.0
+
+        df = t.merge(s[["date", "ticker", "sent_score"]], on=["date", "ticker"], how="left")
+        df["sent_score"] = pd.to_numeric(df["sent_score"], errors="coerce").fillna(0.0)
 
         # Process each row through the Bayesian engine
         results = []

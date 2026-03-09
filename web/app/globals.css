@@ -1,0 +1,396 @@
+:root {
+  --bg: #07111d;
+  --bg-card: #0e1c2c;
+  --line: #23405c;
+  --text: #d9e5f5;
+  --muted: #8da2bd;
+  --accent: #3ab1ff;
+  --danger: #ff6b6b;
+  --ok: #4cd688;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 0 0, #0f2d4c 0%, #07111d 55%);
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.hero-card {
+  background:
+    radial-gradient(80% 120% at 0% 0%, rgba(58, 177, 255, 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: 28px;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #11243a;
+  color: var(--text);
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: #2f8ac4;
+  background: #103252;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status.RUNNING {
+  color: #ffd27a;
+  background: rgba(255, 210, 122, 0.12);
+}
+
+.status.COMPLETED {
+  color: var(--ok);
+  background: rgba(76, 214, 136, 0.12);
+}
+
+.status.FAILED {
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid rgba(141, 162, 189, 0.18);
+  font-size: 14px;
+}
+
+.table th {
+  color: #b4c6db;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workflow {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflow span {
+  font-size: 12px;
+  color: #bdd2ea;
+  border: 1px solid rgba(141, 162, 189, 0.3);
+  padding: 6px 8px;
+  border-radius: 999px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #bdd2ea;
+  font-size: 13px;
+}
+
+.advanced-panel {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(141, 162, 189, 0.25);
+  display: grid;
+  gap: 8px;
+  background: rgba(8, 20, 34, 0.4);
+}
+
+.advanced-panel label {
+  color: #bdd2ea;
+  font-size: 13px;
+}
+
+.advanced-panel select {
+  background: #0d2137;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 220px;
+}
+
+.advanced-panel p {
+  font-size: 12px;
+}
+
+.info-text {
+  margin-top: 10px;
+  color: #7ed9ff;
+}
+
+.error-text {
+  margin-top: 10px;
+  color: #ff8f8f;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.summary-item {
+  border: 1px solid rgba(141, 162, 189, 0.22);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.summary-label {
+  color: #9eb5cf;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.summary-value {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.health-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.health-good {
+  color: #4cd688;
+  background: rgba(76, 214, 136, 0.12);
+}
+
+.health-warn {
+  color: #ffd27a;
+  background: rgba(255, 210, 122, 0.12);
+}
+
+.health-bad {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.14);
+}
+
+.health-neutral {
+  color: #b4c6db;
+  background: rgba(141, 162, 189, 0.14);
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: rgba(58, 177, 255, 0.08);
+}
+
+.selected-row {
+  background: rgba(58, 177, 255, 0.12);
+}
+
+.empty-state {
+  margin-top: 12px;
+  border: 1px dashed rgba(141, 162, 189, 0.4);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.empty-state strong {
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.recommendation-cards {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.rec-card {
+  text-align: left;
+  border: 1px solid rgba(141, 162, 189, 0.3);
+  border-radius: 10px;
+  background: rgba(8, 20, 34, 0.52);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.selected-rec-card {
+  border-color: rgba(58, 177, 255, 0.7);
+  background: rgba(58, 177, 255, 0.12);
+}
+
+.rec-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #bdd2ea;
+}
+
+.rec-card p {
+  font-size: 12px;
+}
+
+.decision-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.decision-pill.Buy {
+  color: #4cd688;
+  background: rgba(76, 214, 136, 0.14);
+}
+
+.decision-pill.Hold {
+  color: #ffd27a;
+  background: rgba(255, 210, 122, 0.14);
+}
+
+.decision-pill.Sell {
+  color: #ff8f8f;
+  background: rgba(255, 107, 107, 0.16);
+}
+
+.audit-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(141, 162, 189, 0.25);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(8, 20, 34, 0.65);
+  display: grid;
+  gap: 10px;
+}
+
+.audit-panel h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.audit-kv {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  font-size: 13px;
+}
+
+.audit-panel details {
+  border: 1px solid rgba(141, 162, 189, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.audit-panel summary {
+  cursor: pointer;
+  text-transform: capitalize;
+  font-size: 13px;
+  color: #b4c6db;
+}
+
+.mono {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+  font-size: 12px;
+  color: #c8daf1;
+}
+
+@media (min-width: 980px) {
+  .grid {
+    grid-template-columns: 1.1fr 1fr;
+  }
+}

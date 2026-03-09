@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum RunMode {
+  STATIC
+  ADAPTIVE
+}
+
+enum RunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Run {
+  id          String           @id @default(cuid())
+  mode        RunMode
+  status      RunStatus
+  startedAt   DateTime?
+  endedAt     DateTime?
+  error       String?
+  summaryJson String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  recommendations Recommendation[]
+
+  @@index([createdAt])
+}
+
+model Recommendation {
+  id                 String   @id @default(cuid())
+  runId               String
+  run                 Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  date                DateTime?
+  ticker              String
+  decision            String
+  close               Float?
+  expectedReturn      Float?
+  probPositive        Float?
+  decisionConfidence  Float?
+  uncertainty         Float?
+  portfolioWeight     Float?
+  auditJson           String?
+  createdAt           DateTime @default(now())
+
+  @@index([runId])
+  @@index([ticker])
+}

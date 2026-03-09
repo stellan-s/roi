@@ -196,7 +196,9 @@ class PortfolioTracker:
     def execute_trades(self,
                       trade_decisions: pd.DataFrame,
                       current_prices: pd.DataFrame,
-                      cash_per_position: float = 10000.0) -> List[Dict]:
+                      cash_per_position: float = 10000.0,
+                      slippage_bps: float = 0.0,
+                      fee_bps: float = 0.0) -> List[Dict]:
         """
         Simulate trade execution based on ROI system decisions.
 
@@ -204,6 +206,8 @@ class PortfolioTracker:
             trade_decisions: DataFrame containing Buy/Sell decisions and weights
             current_prices: DataFrame with current prices
             cash_per_position: Cash allocation per position
+            slippage_bps: Execution slippage in basis points
+            fee_bps: Transaction fee in basis points
 
         Returns:
             List of executed trades
@@ -211,11 +215,18 @@ class PortfolioTracker:
 
         executed_trades = []
 
+        if self.current_state is None:
+            self.update_portfolio_state(current_prices)
+
         # Filter for buy decisions with weight > 0
         buy_decisions = trade_decisions[
             (trade_decisions['decision'] == 'Buy') &
             (trade_decisions['portfolio_weight'] > 0)
         ]
+
+        slippage = max(slippage_bps, 0.0) / 10000.0
+        fee = max(fee_bps, 0.0) / 10000.0
+        execution_multiplier = 1.0 + slippage + fee
 
         for _, row in buy_decisions.iterrows():
             ticker = row['ticker']
@@ -226,14 +237,15 @@ class PortfolioTracker:
             if price_row.empty:
                 continue
 
-            current_price = price_row.iloc[0]['close']
+            current_price = float(price_row.iloc[0]['close'])
+            execution_price = current_price * execution_multiplier
 
             # Calculate position size
             position_value = target_weight * self.current_state.total_value
-            shares_to_buy = position_value / current_price
+            shares_to_buy = position_value / execution_price
 
             # Check if we have enough cash
-            cost = shares_to_buy * current_price
+            cost = shares_to_buy * execution_price
             if cost <= self.current_state.cash:
                 # Execute trade
                 trade = {
@@ -242,21 +254,27 @@ class PortfolioTracker:
                     'action': 'BUY',
                     'shares': shares_to_buy,
                     'price': current_price,
+                    'execution_price': execution_price,
                     'value': cost,
+                    'slippage_bps': slippage_bps,
+                    'fee_bps': fee_bps,
                     'expected_return': row['expected_return'],
                     'prob_positive': row['prob_positive'],
                     'regime': row.get('market_regime', row.get('regime', 'unknown')),
-                    'decision_confidence': row['decision_confidence']
+                    'decision_confidence': row.get('decision_confidence', 0.5),
                 }
 
                 executed_trades.append(trade)
 
                 # Update portfolio state
-                self._add_holding(ticker, shares_to_buy, current_price)
+                self._add_holding(ticker, shares_to_buy, execution_price)
                 self.current_state.cash -= cost
                 self.current_state.total_invested += cost
 
-                print(f"📈 BOUGHT {shares_to_buy:.0f} {ticker} @ {current_price:.2f} (value: {cost:.0f})")
+                print(
+                    f"📈 BOUGHT {shares_to_buy:.0f} {ticker} @ {execution_price:.2f} "
+                    f"(value: {cost:.0f}, raw: {current_price:.2f})"
+                )
 
         # Save trades
         self.trade_history.extend(executed_trades)

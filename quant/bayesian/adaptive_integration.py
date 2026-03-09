@@ -633,10 +633,23 @@ class AdaptiveBayesianEngine(BayesianPolicyEngine):
 
             # Apply risk budgeting optimization for position sizing
             if not results_df.empty:
+                # Convert filtered opportunities into actionable longs.
+                investable_mask = (
+                    pd.to_numeric(results_df.get('expected_return', 0.0), errors='coerce').fillna(0.0) > 0.0
+                ) & (
+                    pd.to_numeric(results_df.get('prob_positive', 0.0), errors='coerce').fillna(0.0) >= 0.5
+                )
+                results_df.loc[investable_mask, 'decision'] = 'Buy'
+                results_df.loc[~investable_mask, 'decision'] = 'Hold'
+
                 optimized_results, self.risk_budgeting_diagnostics = self.risk_budgeting_engine.optimize_portfolio(
                     results_df, current_regime_str
                 )
                 results_df = optimized_results
+
+                # Keep decision semantics aligned with allocated weights.
+                if 'portfolio_weight' in results_df.columns:
+                    results_df['decision'] = np.where(results_df['portfolio_weight'] > 0, 'Buy', 'Hold')
 
         return results_df
 

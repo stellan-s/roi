@@ -9,18 +9,17 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
-import yaml
 import argparse
 
 from quant.adaptive_main import load_configuration, prepare_historical_data, calibrate_adaptive_engine
 from quant.bayesian.integration import BayesianPolicyEngine
-from quant.backtesting.framework import BacktestEngine, BacktestPeriod, BacktestResults
-from quant.backtesting.attribution import PerformanceAttributor
+from quant.backtesting.framework import BacktestPeriod, BacktestResults
 from quant.data_layer.prices import fetch_prices
 from quant.data_layer.news import fetch_news
 from quant.data_layer.macro import fetch_vix
-from quant.features.technical import compute_technical_features
-from quant.features.sentiment import naive_sentiment
+from quant.data_layer.validation import normalize_news_schema, normalize_prices_schema
+from quant.engine import DayRunContext, run_engine_day
+from quant.observability import get_logger, log_event, new_run_id
 from quant.portfolio.rules import PortfolioManager
 from quant.portfolio.state import PortfolioTracker
 
@@ -39,67 +38,52 @@ def create_static_engine(config):
 
 def run_backtest_period(engine, config, start_date, end_date, engine_type="unknown"):
     """Run backtest for a specific period with given engine."""
+    logger = get_logger("quant.backtest")
+    run_id = new_run_id("backtest")
+    log_event(logger, "backtest_start", run_id=run_id, engine_type=engine_type, start_date=start_date, end_date=end_date)
 
-    # Get universe
-    universe = config['universe']['tickers']
+    universe = config["universe"]["tickers"]
+    period_start = pd.Timestamp(start_date) - timedelta(days=300)
+    period_end = pd.Timestamp(end_date)
 
-    # Fetch data for the period (add buffer for technical indicators)
-    period_start = pd.Timestamp(start_date) - timedelta(days=300)  # Buffer for indicators
+    prices = normalize_prices_schema(
+        fetch_prices(
+            tickers=universe,
+            cache_dir=config["data"]["cache_dir"],
+            lookback_days=1000,
+        )
+    )
+    prices_period = prices[(prices["date"] >= period_start) & (prices["date"] <= period_end)].copy()
+    if prices_period.empty:
+        raise ValueError("No price data available for requested backtest period")
 
-    prices = fetch_prices(
-        tickers=universe,
-        cache_dir=config['data']['cache_dir'],
-        lookback_days=1000  # Enough for the full period
+    news = normalize_news_schema(
+        fetch_news(
+            feed_urls=config["signals"]["news_feed_urls"],
+            cache_dir=config["data"]["cache_dir"],
+        )
     )
 
-    # Filter to backtest period
-    prices_period = prices[
-        (prices['date'] >= period_start) &
-        (prices['date'] <= pd.Timestamp(end_date))
-    ].copy()
-
-    # Get news data
-    news = fetch_news(
-        feed_urls=config['signals']['news_feed_urls'],
-        cache_dir=config['data']['cache_dir']
-    )
-
-    # Compute features
-    tech = compute_technical_features(
-        prices_period,
-        config['signals']['sma_long'],
-        config['signals']['momentum_window']
-    )
-
-    # Filter technical data to actual backtest period
-    tech_backtest = tech[
-        (tech['date'] >= pd.Timestamp(start_date)) &
-        (tech['date'] <= pd.Timestamp(end_date))
-    ].copy()
-
-    if len(tech_backtest) == 0:
-        raise ValueError(f"No technical data available for backtest period {start_date} to {end_date}")
-
-    senti = naive_sentiment(news, universe)
-
-    # Fetch VIX data for enhanced regime detection
     vix_data = fetch_vix(
-        cache_dir=config['data']['cache_dir'],
-        lookback_days=1000  # Same as price data lookback
+        cache_dir=config["data"]["cache_dir"],
+        lookback_days=1000,
     )
+    if vix_data is not None and not vix_data.empty and "date" in vix_data.columns:
+        vix_data = vix_data.copy()
+        vix_data["date"] = pd.to_datetime(vix_data["date"], errors="coerce").dt.normalize()
+        vix_data = vix_data[vix_data["date"].notna()]
 
-    print(f"Backtest data: {len(tech_backtest)} tech records from {tech_backtest['date'].min()} to {tech_backtest['date'].max()}")
-    if not vix_data.empty:
-        print(f"VIX data: {len(vix_data)} records from {vix_data['date'].min().date()} to {vix_data['date'].max().date()}")
+    # Backtest dates are derived from available close bars in requested period.
+    raw_dates = prices_period[(prices_period["date"] >= pd.Timestamp(start_date)) & (prices_period["date"] <= period_end)]["date"]
+    test_dates = sorted(pd.to_datetime(raw_dates, errors="coerce").dropna().dt.normalize().unique())
+    if len(test_dates) < 2:
+        raise ValueError("Need at least two trading dates to support next-bar execution")
 
-    # Generate recommendations for each day
     daily_results = []
-    # CRITICAL FIX: Use separate portfolio directories for each engine type
-    portfolio_dir = config['data']['cache_dir'] + f"/backtest_portfolio_{engine_type}"
-
-    # Reset portfolio to clean state by removing existing state files
+    portfolio_dir = config["data"]["cache_dir"] + f"/backtest_portfolio_{engine_type}"
     from pathlib import Path
     import shutil
+
     portfolio_path = Path(portfolio_dir)
     if portfolio_path.exists():
         shutil.rmtree(portfolio_path)
@@ -107,76 +91,80 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
     portfolio_tracker = PortfolioTracker(portfolio_dir)
     portfolio_mgr = PortfolioManager(config)
 
-    # Get unique dates and sort them
-    test_dates = sorted(tech_backtest['date'].unique())
+    exec_cfg = config.get("backtesting", {}).get("execution", {})
+    slippage_bps = float(exec_cfg.get("slippage_bps", 3.0))
+    fee_bps = float(exec_cfg.get("fee_bps", config.get("policy", {}).get("trade_cost_bps", 3)))
+    max_drawdown_limit = float(config.get("risk_controls", {}).get("max_drawdown", 0.20))
+    max_daily_loss_limit = float(config.get("risk_controls", {}).get("max_daily_loss", 0.05))
 
-    for i, current_date in enumerate(test_dates):
+    peak_value = 100000.0
+    prev_daily_return = 0.0
+
+    # Use decision date -> execution date (next bar) to avoid look-ahead execution.
+    for i in range(len(test_dates) - 1):
+        decision_date = pd.Timestamp(test_dates[i]).normalize()
+        execution_date = pd.Timestamp(test_dates[i + 1]).normalize()
+
         if i % 10 == 0:
-            print(f"Processing date {i+1}/{len(test_dates)}: {current_date.date()}")
+            print(f"Processing day {i+1}/{len(test_dates)-1}: decision {decision_date.date()} -> execution {execution_date.date()}")
 
-        # Get data up to current date for decision making
-        tech_current = tech[tech['date'] <= current_date]
-        if len(tech_current) == 0:
+        context = DayRunContext(
+            as_of=decision_date,
+            tickers=universe,
+            prices=prices_period,
+            news=news,
+            vix_data=vix_data,
+        )
+        day_result = run_engine_day(engine, context, config)
+        recommendations = day_result.recommendations
+        if recommendations.empty:
             continue
 
-        # Get unique latest data for each ticker for the current date
-        # This fixes the duplicate recommendation issue where tail() was creating 235 duplicates
-        latest_tech = tech_current.groupby('ticker').tail(1)
+        # Apply portfolio rules with available history up to decision_date only.
+        price_history = prices_period[prices_period["date"] <= decision_date].pivot(
+            index="date", columns="ticker", values="close"
+        ).dropna(axis=1, how="all")
+        final_decisions = portfolio_mgr.apply_portfolio_rules(recommendations, price_history)
 
-        # Generate recommendations using the engine with VIX data
-        current_vix = vix_data[vix_data['date'] <= current_date] if not vix_data.empty else None
+        # Guardrails: halt new risk if drawdown/daily loss limits are breached.
+        current_summary = portfolio_tracker.get_portfolio_summary()
+        current_value = float(current_summary.get("total_value", 100000.0))
+        peak_value = max(peak_value, current_value)
+        current_drawdown = 0.0 if peak_value <= 0 else (peak_value - current_value) / peak_value
 
-        if hasattr(engine, 'bayesian_score_adaptive'):
-            recommendations = engine.bayesian_score_adaptive(
-                latest_tech,  # Use deduplicated latest data per ticker
-                senti,
-                prices_period[prices_period['date'] <= current_date],
-                current_vix
-            )
-        else:
-            recommendations = engine.bayesian_score(
-                latest_tech,  # Use deduplicated latest data per ticker
-                senti,
-                prices_period[prices_period['date'] <= current_date],
-                current_vix
-            )
+        kill_switch = current_drawdown >= max_drawdown_limit or abs(prev_daily_return) >= max_daily_loss_limit
+        if kill_switch:
+            final_decisions = final_decisions.copy()
+            final_decisions.loc[final_decisions["decision"] == "Buy", "decision"] = "Hold"
+            final_decisions["portfolio_weight"] = 0.0
 
-        # Show regime explanation on first day or every 10 days for debugging
-        if i == 0 or i % 10 == 0:
-            if hasattr(engine, 'get_regime_explanation'):
-                regime_explanation = engine.get_regime_explanation()
-                print(f"\n📊 Regime Analysis for {current_date.date()}:")
-                # Show just the first few lines of explanation
-                explanation_lines = regime_explanation.split('\n')[:6]
-                for line in explanation_lines:
-                    if line.strip():
-                        print(f"    {line}")
-
-        if len(recommendations) == 0:
+        # Execute on next bar prices.
+        execution_prices = prices_period[prices_period["date"] == execution_date][["ticker", "close"]]
+        if execution_prices.empty:
             continue
 
-        # Apply portfolio rules
-        final_decisions = portfolio_mgr.apply_portfolio_rules(recommendations)
+        portfolio_tracker.update_portfolio_state(execution_prices, as_of_date=str(execution_date.date()))
+        executed_trades = portfolio_tracker.execute_trades(
+            final_decisions,
+            execution_prices,
+            slippage_bps=slippage_bps,
+            fee_bps=fee_bps,
+        )
 
-        # Get current prices
-        current_prices = prices_period[prices_period['date'] == current_date][['ticker', 'close']]
-        if len(current_prices) == 0:
-            continue
-
-        # Update portfolio
-        portfolio_tracker.update_portfolio_state(current_prices, as_of_date=str(current_date.date()))
-        executed_trades = portfolio_tracker.execute_trades(final_decisions, current_prices)
-
-        # Calculate daily return
         portfolio_summary = portfolio_tracker.get_portfolio_summary()
+        prev_daily_return = float(portfolio_summary.get("portfolio_return", 0.0))
 
-        daily_results.append({
-            'date': current_date,
-            'portfolio_value': portfolio_summary.get('total_value', 100000),
-            'daily_return': portfolio_summary.get('portfolio_return', 0.0),
-            'positions': portfolio_summary.get('positions', 0),
-            'trades': len(executed_trades)
-        })
+        daily_results.append(
+            {
+                "date": execution_date,
+                "decision_date": decision_date,
+                "portfolio_value": portfolio_summary.get("total_value", 100000),
+                "daily_return": portfolio_summary.get("portfolio_return", 0.0),
+                "positions": portfolio_summary.get("positions", 0),
+                "trades": len(executed_trades),
+                "kill_switch": kill_switch,
+            }
+        )
 
     if len(daily_results) == 0:
         raise ValueError("No backtest results generated")
@@ -243,7 +231,7 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
     # VaR 95%
     var_95 = daily_returns.quantile(0.05)
 
-    return BacktestResults(
+    results = BacktestResults(
         total_return=total_return,
         annualized_return=annualized_return,
         volatility=volatility,
@@ -259,7 +247,7 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
         daily_positions=results_df[['date', 'positions']],
         daily_pnl=daily_returns,
         backtest_id=f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-        engine_type="adaptive" if hasattr(engine, 'bayesian_score_adaptive') else "static",
+        engine_type=engine_type,
         period=BacktestPeriod(
             start_date=pd.Timestamp(start_date),
             end_date=pd.Timestamp(end_date),
@@ -270,6 +258,18 @@ def run_backtest_period(engine, config, start_date, end_date, engine_type="unkno
         ),
         config=config
     )
+    log_event(
+        logger,
+        "backtest_complete",
+        run_id=run_id,
+        engine_type=engine_type,
+        total_return=results.total_return,
+        annualized_return=results.annualized_return,
+        sharpe_ratio=results.sharpe_ratio,
+        max_drawdown=results.max_drawdown,
+        total_trades=results.total_trades,
+    )
+    return results
 
 def main():
     """Run comprehensive backtesting analysis."""

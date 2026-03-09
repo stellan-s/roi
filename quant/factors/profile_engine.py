@@ -54,11 +54,16 @@ class StockFactorProfileEngine:
         filtering_config = self.profiles_config.get('dynamic_filtering', {})
         self.cost_threshold = filtering_config.get('cost_threshold', 0.003)
         self.conviction_threshold = filtering_config.get('conviction_threshold', 0.6)
+        self.min_positions = filtering_config.get('min_positions', 5)
         self.max_positions = filtering_config.get('max_positions', 20)
         self.min_liquidity_mcap = filtering_config.get('min_liquidity_mcap', 1000)
 
         print(f"📊 Loaded {len(self.profiles)} factor profiles covering {len(self.stock_to_profile)} stocks")
-        print(f"🎯 Dynamic filtering: {self.cost_threshold:.1%} min return, {self.conviction_threshold:.1%} min conviction")
+        print(
+            f"🎯 Dynamic filtering: {self.cost_threshold:.1%} min return, "
+            f"{self.conviction_threshold:.1%} min conviction, "
+            f"{self.min_positions}-{self.max_positions} positions"
+        )
 
     def _load_profiles(self) -> Dict[str, FactorProfile]:
         """Load factor profiles from configuration"""
@@ -197,20 +202,94 @@ class StockFactorProfileEngine:
         if not self.enabled or recommendations.empty:
             return recommendations
 
-        # Apply basic filters
-        filtered = recommendations[
-            (recommendations['expected_return'] > self.cost_threshold) &
-            (recommendations['decision_confidence'] > self.conviction_threshold) &
-            (recommendations['prob_positive'] > 0.55)  # Basic Bayesian threshold
+        # Coerce scoring columns to numeric so stale/object dtypes do not break filtering.
+        numeric = recommendations.copy()
+        for col in ["expected_return", "decision_confidence", "prob_positive"]:
+            if col not in numeric.columns:
+                numeric[col] = 0.0
+            numeric[col] = pd.to_numeric(numeric[col], errors="coerce").fillna(0.0)
+
+        # Strict baseline filter.
+        filtered = numeric[
+            (numeric["expected_return"] > self.cost_threshold)
+            & (numeric["decision_confidence"] > self.conviction_threshold)
+            & (numeric["prob_positive"] > 0.55)
         ].copy()
 
         if len(filtered) == 0:
-            print(f"⚠️ No stocks passed filtering criteria (cost: {self.cost_threshold:.1%}, conviction: {self.conviction_threshold:.1%})")
-            return pd.DataFrame()
+            print(
+                f"⚠️ No stocks passed filtering criteria "
+                f"(cost: {self.cost_threshold:.1%}, conviction: {self.conviction_threshold:.1%})"
+            )
+
+            # Fallback path: relax thresholds to avoid empty adaptive runs.
+            relaxed_cost = max(self.cost_threshold * 0.25, 0.0)
+            relaxed_conviction = max(self.conviction_threshold * 0.85, 0.40)
+            filtered = numeric[
+                (numeric["expected_return"] > relaxed_cost)
+                & (numeric["decision_confidence"] > relaxed_conviction)
+                & (numeric["prob_positive"] > 0.50)
+            ].copy()
+
+            if len(filtered) == 0:
+                # Last-resort fallback: keep positive-expectancy opportunities.
+                filtered = numeric[
+                    (numeric["expected_return"] > 0.0) & (numeric["prob_positive"] > 0.50)
+                ].copy()
+
+            if len(filtered) == 0:
+                # Never return empty if we had candidate inputs; keep top by expectancy/confidence.
+                fallback_n = max(1, min(self.max_positions, len(numeric)))
+                filtered = numeric.sort_values(
+                    ["expected_return", "decision_confidence"], ascending=False
+                ).head(fallback_n)
+                print(
+                    f"🛟 Adaptive fallback selected top {len(filtered)} by expected return/confidence"
+                )
+            else:
+                print(
+                    f"🛟 Adaptive fallback selected {len(filtered)} candidates "
+                    f"(cost>{relaxed_cost:.2%}, conviction>{relaxed_conviction:.1%})"
+                )
 
         # Focus on top opportunities by conviction
         if len(filtered) > self.max_positions:
             filtered = filtered.nlargest(self.max_positions, 'decision_confidence')
+
+        # Balanced target sizing: top up sparse outputs to avoid tiny universes.
+        if len(filtered) < self.min_positions:
+            topup_pool = numeric[
+                (numeric["expected_return"] > 0.0) & (numeric["prob_positive"] > 0.50)
+            ].copy()
+            if topup_pool.empty:
+                topup_pool = numeric.copy()
+
+            topup_pool = topup_pool.sort_values(
+                ["expected_return", "decision_confidence", "prob_positive"], ascending=False
+            )
+
+            existing = set(filtered["ticker"].astype(str)) if not filtered.empty else set()
+            needed = max(0, self.min_positions - len(filtered))
+            if needed > 0:
+                add_rows = []
+                for _, row in topup_pool.iterrows():
+                    ticker = str(row.get("ticker", ""))
+                    if ticker in existing:
+                        continue
+                    add_rows.append(row)
+                    existing.add(ticker)
+                    if len(add_rows) >= needed:
+                        break
+                if add_rows:
+                    filtered = pd.concat([filtered, pd.DataFrame(add_rows)], ignore_index=True)
+                    print(
+                        f"🛟 Balanced top-up added {len(add_rows)} candidates "
+                        f"to reach {len(filtered)} total"
+                    )
+
+            # Keep bounds after top-up.
+            if len(filtered) > self.max_positions:
+                filtered = filtered.nlargest(self.max_positions, 'decision_confidence')
 
         print(f"🎯 Filtered to {len(filtered)} investable opportunities from {len(recommendations)} total")
 

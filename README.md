@@ -8,36 +8,48 @@ A modular quantitative trading system for Swedish stocks that combines Bayesian 
 - Python 3.12+ with virtual environment in `.venv`
 - Internet connection for data fetching
 
+### Bootstrap
+```bash
+./scripts/bootstrap.sh
+source .venv/bin/activate
+```
+
 ### Available Commands
 
 #### Main Trading Systems
 ```bash
 # Standard trading pipeline
-python -m quant.main
+python3 -m quant.main
 
 # Adaptive pipeline with parameter learning
-python -m quant.adaptive_main
+python3 -m quant.adaptive_main
 ```
 
 #### Backtesting
 ```bash
 # Run backtest with default settings
-python -m quant.backtest_runner
+python3 -m quant.backtest_runner
 
 # Compare adaptive vs static configurations
-python -m quant.backtest_runner --comparison
+python3 -m quant.backtest_runner --comparison
 ```
 
 #### Testing
 ```bash
 # Test individual modules
-python test_sentiment_module.py
-python test_regime_module.py
-python test_risk_module.py
-python test_portfolio_module.py
+python3 test_sentiment_module.py
+python3 test_regime_module.py
+python3 test_risk_module.py
+python3 test_portfolio_module.py
 
 # Test full system
-python test_full_modular_system.py
+python3 test_full_modular_system.py
+
+# Reliability regression suite
+python3 -m unittest test_engine_contract.py test_config_loader.py test_prices_fetch.py test_backtest_golden.py test_integration_pipeline.py
+
+# One-command quality gate
+./scripts/quality_gate.sh
 ```
 
 ## Configuration
@@ -45,6 +57,27 @@ python test_full_modular_system.py
 - `quant/config/settings.yaml` - Main system settings
 - `quant/config/universe.yaml` - Stock tickers to analyze
 - `quant/config/modules.yaml` - Module configurations
+
+## Web App (Next.js + Prisma)
+
+The `web/` folder provides a TypeScript app layer with SQLite persistence for runs and recommendations.
+
+### Setup
+```bash
+cd web
+cp .env.example .env
+npm install
+npx prisma generate
+npm run db:init
+npm run dev
+```
+
+Notes:
+- `ROI_PYTHON_BIN` should point to the Python environment used by the quant engine.
+- Set `ROI_QUANT_DRY_RUN=1` in `web/.env` to test the UI without a full market-data run.
+- If Prisma migrations work in your local environment, you can still use:
+  `npx prisma migrate dev --name init`
+- In Run Details, click a recommendation row to inspect the stored decision audit/rationale.
 
 ## Output
 
@@ -62,6 +95,12 @@ The system uses a modular pipeline:
 5. **Risk Management** - Tail risk and volatility assessment
 6. **Portfolio Optimization** - Position sizing and allocation
 7. **Decision Engine** - Buy/sell/hold recommendations
+
+### Canonical Daily Engine API
+
+Live and backtest execution now share one daily contract:
+- `quant.engine.run_engine_day`
+- Docs: `docs/ENGINE_CONTRACT.md`
 
 ## Key Features
 
