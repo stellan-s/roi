@@ -120,13 +120,13 @@ ModuleContract(
 ### **1. Test Individual Modules**
 ```bash
 # Test each module individually
-python test_sentiment_module.py
-python test_regime_module.py
-python test_risk_module.py
-python test_portfolio_module.py
+python tests/test_sentiment_module.py
+python tests/test_regime_module.py
+python tests/test_risk_module.py
+python tests/test_portfolio_module.py
 
 # Test complete integrated system
-python test_full_modular_system.py
+python tests/test_full_modular_system.py
 ```
 
 ### **2. Run Optimization**
