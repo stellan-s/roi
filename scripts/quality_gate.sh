@@ -11,11 +11,11 @@ fi
 
 "$PYTHON_BIN" -m compileall quant
 "$PYTHON_BIN" -m unittest \
-  test_engine_contract.py \
-  test_config_loader.py \
-  test_prices_fetch.py \
-  test_backtest_golden.py \
-  test_integration_pipeline.py
+  tests.test_engine_contract \
+  tests.test_config_loader \
+  tests.test_prices_fetch \
+  tests.test_backtest_golden \
+  tests.test_integration_pipeline
 "$PYTHON_BIN" -m quant.backtest_runner --help >/dev/null
 "$PYTHON_BIN" -m quant.backtesting.cli --help >/dev/null
 

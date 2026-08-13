@@ -4,3 +4,8 @@ artifacts/
 data/
 reports/
 .env
+.DS_Store
+/<cache_dir>/
+/backtesting_results/
+/test_cache/
+/results.md

@@ -37,16 +37,21 @@ python3 -m quant.backtest_runner --comparison
 #### Testing
 ```bash
 # Test individual modules
-python3 test_sentiment_module.py
-python3 test_regime_module.py
-python3 test_risk_module.py
-python3 test_portfolio_module.py
+python3 tests/test_sentiment_module.py
+python3 tests/test_regime_module.py
+python3 tests/test_risk_module.py
+python3 tests/test_portfolio_module.py
 
 # Test full system
-python3 test_full_modular_system.py
+python3 tests/test_full_modular_system.py
 
 # Reliability regression suite
-python3 -m unittest test_engine_contract.py test_config_loader.py test_prices_fetch.py test_backtest_golden.py test_integration_pipeline.py
+python3 -m unittest \
+  tests.test_engine_contract \
+  tests.test_config_loader \
+  tests.test_prices_fetch \
+  tests.test_backtest_golden \
+  tests.test_integration_pipeline
 
 # One-command quality gate
 ./scripts/quality_gate.sh

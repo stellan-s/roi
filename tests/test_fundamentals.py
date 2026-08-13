@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Test script for fundamentals integration
-Run: python test_fundamentals.py
+Run: python tests/test_fundamentals.py
 """
 
 import sys
